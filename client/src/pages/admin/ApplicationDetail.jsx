@@ -1,45 +1,14 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, CheckCircle, XCircle, MessageSquare, GraduationCap, AlertCircle } from 'lucide-react';
+import { ArrowLeft, CheckCircle, XCircle, MessageSquare, GraduationCap } from 'lucide-react';
 import { DashboardLayout } from '../../components/layout/DashboardLayout';
-import { Card, CardBody, CardHeader, CardTitle, CardFooter } from '../../components/ui/Card';
+import { Card, CardBody, CardHeader, CardTitle } from '../../components/ui/Card';
 import { StatusBadge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
 import { ReasonModal, ConfirmDialog } from '../../components/ui/Modal';
 import { formatDate, formatCurrency, formatDateTime } from '../../utils/helpers';
-import { sampleApplications } from '../../data/sampleData';
+import { adminService } from '../../services';
 import toast from 'react-hot-toast';
-
-const fullApplication = {
-  ...sampleApplications[0],
-  personal: {
-    dob: '2005-03-15', gender: 'Female', phone: '9876543210', category: 'General',
-    domicileState: 'Rajasthan', parentName: 'Ramesh Sharma', parentPhone: '9988776655',
-    address: '12, Shanti Nagar, Jaipur, Rajasthan - 302001',
-  },
-  academic: {
-    qualifications: [
-      { level: '10th', board: 'RBSE', school: 'Govt. Sr. Sec. School', year: '2021', marks: '91.00%' },
-      { level: '12th', board: 'RBSE', school: 'Govt. Sr. Sec. School', year: '2023', marks: '85.50%', subjects: 'PCM' },
-    ],
-  },
-  eligibility: {
-    criteria: [
-      { label: '12th Percentage', required: '≥ 60%', achieved: '85.5%', passed: true },
-      { label: 'Physics & Mathematics', required: 'Must have studied', achieved: 'Yes', passed: true },
-    ],
-    meritComponents: [
-      { label: '12th Marks (80%)', score: 68.4 },
-      { label: 'Academic Record (20%)', score: 19.1 },
-    ],
-  },
-  fees: { total: 150000 },
-  statusHistory: [
-    { status: 'Draft', timestamp: '2026-11-19T08:00:00Z', actor: 'Student', note: 'Created' },
-    { status: 'Submitted', timestamp: '2026-11-20T10:30:00Z', actor: 'Student', note: 'Submitted' },
-    { status: 'Under Admin Review', timestamp: '2026-11-20T11:00:00Z', actor: 'System', note: 'Auto-routed to review' },
-  ],
-};
 
 export default function ApplicationDetail() {
   const { id } = useParams();
@@ -49,18 +18,41 @@ export default function ApplicationDetail() {
   const [approveOpen, setApproveOpen] = useState(false);
   const [offerOpen, setOfferOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [detailLoading, setDetailLoading] = useState(true);
+  const [app, setApp] = useState(null);
 
-  const app = fullApplication;
+  useEffect(() => {
+    async function loadAppDetail() {
+      try {
+        const res = await adminService.getApplication(id);
+        if (res.data) {
+          setApp(res.data);
+        }
+      } catch (err) {
+        console.error('Failed to load application details:', err);
+        toast.error('Failed to load application details');
+      } finally {
+        setDetailLoading(false);
+      }
+    }
+    loadAppDetail();
+  }, [id]);
 
   const handleAction = async (action, reason) => {
     setLoading(true);
     try {
-      // await adminService.reviewApplication(id, { action, reason });
-      await new Promise(r => setTimeout(r, 1000));
-      toast.success(`Application ${action}d successfully.`);
+      if (action === 'offer') {
+        await adminService.issueOffer(id, { remarks: reason });
+      } else {
+        await adminService.reviewApplication(id, { action, reason });
+      }
+      toast.success(`Application action "${action}" completed successfully.`);
+      const res = await adminService.getApplication(id);
+      if (res.data) setApp(res.data);
       setRejectOpen(false); setCorrectionOpen(false); setApproveOpen(false); setOfferOpen(false);
-    } catch {
-      toast.error('Action failed. Please try again.');
+    } catch (err) {
+      const msg = err.response?.data?.message || err.response?.data?.error || 'Action failed. Please try again.';
+      toast.error(msg);
     } finally { setLoading(false); }
   };
 
@@ -71,13 +63,36 @@ export default function ApplicationDetail() {
     </div>
   );
 
+  if (detailLoading) {
+    return (
+      <DashboardLayout role="admin">
+        <div className="flex items-center justify-center h-64 text-slate-400 text-sm">
+          Loading application details...
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  if (!app) {
+    return (
+      <DashboardLayout role="admin">
+        <div className="max-w-4xl space-y-4">
+          <Button variant="ghost" size="sm" leftIcon={<ArrowLeft className="w-4 h-4" />} onClick={() => navigate('/admin/applications')}>Back</Button>
+          <div className="p-8 bg-white border border-slate-200 rounded-lg text-center text-slate-500">
+            Application not found or inaccessible.
+          </div>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
   return (
     <DashboardLayout role="admin">
       <div className="max-w-4xl space-y-5">
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="sm" leftIcon={<ArrowLeft className="w-4 h-4" />} onClick={() => navigate('/admin/applications')}>Back</Button>
           <div className="flex-1">
-            <h2 className="text-base font-bold text-slate-800">{app.studentName}</h2>
+            <h2 className="text-base font-bold text-slate-800">{app.studentName || 'Student'}</h2>
             <p className="text-xs text-slate-500 font-mono">{app.applicationNumber}</p>
           </div>
           <StatusBadge status={app.status} />
@@ -100,13 +115,13 @@ export default function ApplicationDetail() {
               <CardBody>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
                   <Row label="Name" value={app.studentName} />
-                  <Row label="Date of Birth" value={formatDate(app.personal.dob)} />
-                  <Row label="Gender" value={app.personal.gender} />
-                  <Row label="Mobile" value={app.personal.phone} />
-                  <Row label="Category" value={app.personal.category} />
-                  <Row label="Domicile" value={app.personal.domicileState} />
-                  <Row label="Parent / Guardian" value={app.personal.parentName} />
-                  <Row label="Parent Mobile" value={app.personal.parentPhone} />
+                  <Row label="Date of Birth" value={formatDate(app.personal?.dob)} />
+                  <Row label="Gender" value={app.personal?.gender} />
+                  <Row label="Mobile" value={app.personal?.phone} />
+                  <Row label="Category" value={app.personal?.category} />
+                  <Row label="Domicile" value={app.personal?.domicileState} />
+                  <Row label="Parent / Guardian" value={app.personal?.parentName} />
+                  <Row label="Parent Mobile" value={app.personal?.parentPhone} />
                 </div>
               </CardBody>
             </Card>
@@ -115,7 +130,7 @@ export default function ApplicationDetail() {
             <Card>
               <CardHeader><CardTitle>Academic Qualifications</CardTitle></CardHeader>
               <CardBody className="space-y-3">
-                {app.academic.qualifications.map((q, i) => (
+                {(app.academic?.qualifications || []).map((q, i) => (
                   <div key={i} className="p-3 bg-slate-50 rounded-lg grid grid-cols-3 gap-3">
                     <Row label="Level" value={q.level} />
                     <Row label="Board" value={q.board} />
@@ -125,6 +140,9 @@ export default function ApplicationDetail() {
                     {q.subjects && <Row label="Subjects" value={q.subjects} />}
                   </div>
                 ))}
+                {(!app.academic?.qualifications || app.academic.qualifications.length === 0) && (
+                  <p className="text-xs text-slate-400">No qualifications provided.</p>
+                )}
               </CardBody>
             </Card>
 
@@ -136,7 +154,7 @@ export default function ApplicationDetail() {
                   <table className="w-full text-sm mb-4">
                     <thead><tr className="border-b border-slate-200"><th className="text-left pb-2 text-xs text-slate-500">Criteria</th><th className="text-left pb-2 text-xs text-slate-500">Required</th><th className="text-left pb-2 text-xs text-slate-500">Achieved</th><th className="text-left pb-2 text-xs text-slate-500">Result</th></tr></thead>
                     <tbody className="divide-y divide-slate-100">
-                      {app.eligibility.criteria.map((c, i) => (
+                      {(app.eligibility?.criteria || []).map((c, i) => (
                         <tr key={i}>
                           <td className="py-2 text-slate-700">{c.label}</td>
                           <td className="py-2 text-slate-600">{c.required}</td>
@@ -150,15 +168,15 @@ export default function ApplicationDetail() {
                     <div className="flex gap-6">
                       <div>
                         <p className="text-xs text-slate-500">Merit Score</p>
-                        <p className="text-lg font-bold text-blue-700">{app.meritScore}</p>
+                        <p className="text-lg font-bold text-blue-700">{app.meritScore || '—'}</p>
                       </div>
                       <div>
                         <p className="text-xs text-slate-500">Merit Rank</p>
-                        <p className="text-lg font-bold text-blue-700">#{app.meritRank}</p>
+                        <p className="text-lg font-bold text-blue-700">{app.meritRank ? `#${app.meritRank}` : '—'}</p>
                       </div>
                     </div>
-                    <span className={`px-3 py-1 rounded-full text-sm font-medium ${app.eligibilityStatus === 'eligible' ? 'bg-teal-100 text-teal-700' : 'bg-red-100 text-red-700'}`}>
-                      {app.eligibilityStatus === 'eligible' ? '✓ Eligible' : '✗ Not Eligible'}
+                    <span className={`px-3 py-1 rounded-full text-sm font-medium ${app.eligibilityStatus === 'eligible' || app.eligibilityStatus === 'ELIGIBLE' ? 'bg-teal-100 text-teal-700' : 'bg-red-100 text-red-700'}`}>
+                      {app.eligibilityStatus === 'eligible' || app.eligibilityStatus === 'ELIGIBLE' ? '✓ Eligible' : '✗ Not Eligible'}
                     </span>
                   </div>
                 </div>
@@ -173,7 +191,7 @@ export default function ApplicationDetail() {
               <CardBody className="space-y-3">
                 <Row label="Course" value={app.course} />
                 <Row label="Branch" value={app.branch} />
-                <Row label="Total Fee" value={formatCurrency(app.fees.total)} />
+                <Row label="Total Fee" value={formatCurrency(app.fees?.total)} />
                 <Row label="Submitted" value={formatDateTime(app.submittedAt)} />
               </CardBody>
             </Card>
@@ -182,13 +200,16 @@ export default function ApplicationDetail() {
               <CardHeader><CardTitle>Status History</CardTitle></CardHeader>
               <CardBody className="p-0">
                 <div className="divide-y divide-slate-100">
-                  {[...app.statusHistory].reverse().map((h, i) => (
+                  {[...(app.statusHistory || [])].reverse().map((h, i) => (
                     <div key={i} className="px-4 py-3">
                       <StatusBadge status={h.status} />
                       <p className="text-xs text-slate-500 mt-1">{formatDateTime(h.timestamp)} · {h.actor}</p>
                       {h.note && <p className="text-xs text-slate-600 mt-0.5">{h.note}</p>}
                     </div>
                   ))}
+                  {(!app.statusHistory || app.statusHistory.length === 0) && (
+                    <p className="p-4 text-xs text-slate-400">No status updates yet.</p>
+                  )}
                 </div>
               </CardBody>
             </Card>
@@ -203,4 +224,3 @@ export default function ApplicationDetail() {
     </DashboardLayout>
   );
 }
-

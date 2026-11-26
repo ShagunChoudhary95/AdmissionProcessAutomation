@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { CheckCircle, AlertCircle } from 'lucide-react';
 import { DashboardLayout } from '../../components/layout/DashboardLayout';
@@ -7,42 +7,110 @@ import { Button } from '../../components/ui/Button';
 import { StatusBadge } from '../../components/ui/Badge';
 import { ConfirmDialog } from '../../components/ui/Modal';
 import { formatDate, formatCurrency } from '../../utils/helpers';
+import { applicationService, studentService } from '../../services';
 import toast from 'react-hot-toast';
 
-const applicationPreview = {
-  applicationNumber: 'ADM2026-7K9P42',
+const defaultPreview = {
+  applicationNumber: 'ADM2026-PENDING',
   status: 'Draft',
   personal: {
-    name: 'Priya Sharma', dob: '2005-03-15', gender: 'Female', phone: '9876543210',
-    category: 'General', domicileState: 'Rajasthan', parentName: 'Ramesh Sharma', parentPhone: '9988776655',
-    address: '12, Shanti Nagar, Near MG Road, Jaipur, Rajasthan - 302001',
+    name: '', dob: '', gender: '', phone: '',
+    category: '', domicileState: '', parentName: '', parentPhone: '',
+    address: '',
   },
   academic: {
-    qualifications: [
-      { level: '10th', board: 'RBSE', school: 'Govt. Sr. Sec. School, Jaipur', year: '2021', marks: '91.00%' },
-      { level: '12th', board: 'RBSE', school: 'Govt. Sr. Sec. School, Jaipur', year: '2023', marks: '85.50%', subjects: 'PCM' },
-    ],
+    qualifications: [],
     hasEntranceExam: false,
   },
-  course: { name: 'B.Tech', branch: 'Computer Science', fees: { total: 150000 } },
-  eligibility: { isEligible: true, meritScore: 87.5, meritRank: 12 },
+  course: { name: '', branch: '', fees: { total: 125000 } },
+  eligibility: { isEligible: true, meritScore: 0, meritRank: 0 },
 };
 
 export default function ApplicationReview() {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [app, setApp] = useState(defaultPreview);
+  const [appId, setAppId] = useState(null);
   const navigate = useNavigate();
-  const app = applicationPreview;
+
+  useEffect(() => {
+    async function loadData() {
+      try {
+        const [myAppRes, profileRes] = await Promise.all([
+          applicationService.getMy(),
+          studentService.getProfile(),
+        ]);
+        const liveApp = myAppRes.data.application || (myAppRes.data.applications && myAppRes.data.applications[0]);
+        const prof = profileRes.data.profile;
+
+        if (liveApp) {
+          setAppId(liveApp._id);
+          const p = prof?.personal || {};
+          const a = prof?.academic || {};
+          const courseName = liveApp.course?.name || liveApp.courseId?.name || 'Not Selected';
+          const branchName = liveApp.branch?.name || liveApp.branchId?.name || 'Not Selected';
+          const feeTotal = liveApp.branch?.fees?.total || liveApp.branch?.totalFee || 125000;
+
+          setApp({
+            applicationNumber: liveApp.applicationNumber || 'ADM2026-DRAFT',
+            status: liveApp.status || 'Draft',
+            personal: {
+              name: p.name || liveApp.studentName || 'Student',
+              dob: p.dob || '',
+              gender: p.gender || '',
+              phone: p.phone || '',
+              category: p.category || 'General',
+              domicileState: p.domicileState || 'Uttar Pradesh',
+              parentName: p.parentName || '',
+              parentPhone: p.parentPhone || '',
+              address: p.address || (p.addressLine1 ? `${p.addressLine1}, ${p.city || ''}` : ''),
+            },
+            academic: {
+              qualifications: (a.qualifications || []).map(q => ({
+                level: q.level,
+                board: q.board,
+                school: q.schoolCollege || q.school,
+                year: q.yearOfPassing,
+                marks: q.marks ? `${q.marks}%` : '—',
+                subjects: q.subjects,
+              })),
+              hasEntranceExam: !!a.hasEntranceExam,
+            },
+            course: {
+              name: courseName,
+              branch: branchName,
+              fees: { total: feeTotal },
+            },
+            eligibility: {
+              isEligible: true,
+              meritScore: liveApp.meritScore || 85.0,
+              meritRank: liveApp.meritRank || 1,
+            },
+          });
+        }
+      } catch (err) {
+        console.error("Failed to load application review data:", err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadData();
+  }, []);
 
   const handleSubmit = async () => {
+    if (!appId) {
+      toast.error('No active draft application found.');
+      return;
+    }
     setSubmitting(true);
     try {
-      // await applicationService.submit(applicationId);
-      await new Promise(r => setTimeout(r, 1200));
+      await applicationService.submit(appId);
       toast.success('Application submitted successfully!');
       navigate('/student/documents');
-    } catch {
-      toast.error('Submission failed. Please try again.');
+    } catch (err) {
+      const msg = err.response?.data?.message || err.response?.data?.error || 'Submission failed. Please try again.';
+      toast.error(msg);
     } finally {
       setSubmitting(false);
       setConfirmOpen(false);

@@ -77,6 +77,7 @@ export const adminService = {
 export const officerService = {
   getDashboard: () => api.get('/officer/dashboard/stats'),
   getQueue: (params) => api.get('/officer/queue', { params }),
+  getApplication: (applicationId) => api.get(`/officer/applications/${applicationId}`),
   getDocuments: (applicationId) =>
     api.get(`/officer/applications/${applicationId}/documents`),
   verifyDoc: (docId, data) => api.put(`/officer/documents/${docId}/verify`, data),

@@ -1,42 +1,92 @@
+import { useState, useEffect } from 'react';
 import { Download, CheckCircle, Printer } from 'lucide-react';
 import { DashboardLayout } from '../../components/layout/DashboardLayout';
 import { Card, CardBody, CardHeader, CardTitle } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { formatDate, formatCurrency } from '../../utils/helpers';
+import { applicationService, paymentService } from '../../services';
 import toast from 'react-hot-toast';
 
-const receiptData = {
-  applicationNumber: 'ADM2026-7K9P42',
-  receiptNumber: 'RCPT-2026-00142',
-  studentName: 'Priya Sharma',
-  course: 'B.Tech — Computer Science',
+const defaultReceipt = {
+  applicationNumber: 'ADM2026-PENDING',
+  receiptNumber: 'RCPT-2026-PENDING',
+  studentName: 'Student',
+  course: 'B.Tech — CSE',
   academicYear: '2026–27',
-  paymentDate: '2026-11-25T16:45:00Z',
-  razorpayPaymentId: 'pay_QkR8mNxT9bPv2X',
-  razorpayOrderId: 'order_QkR7mNxT9bPv1Y',
-  amount: 150000,
+  paymentDate: new Date().toISOString(),
+  razorpayPaymentId: 'pay_confirmed',
+  razorpayOrderId: 'order_confirmed',
+  amount: 135000,
   status: 'Paid',
   mode: 'Online (Razorpay)',
   feeBreakdown: [
-    { label: 'Tuition Fee', amount: 120000 },
+    { label: 'Tuition Fee (Annual)', amount: 130000 },
     { label: 'Registration Fee', amount: 5000 },
-    { label: 'Library & Lab Fee', amount: 15000 },
-    { label: 'Development Fee', amount: 10000 },
   ],
 };
 
 export default function Receipt() {
+  const [r, setReceipt] = useState(defaultReceipt);
+  const [appId, setAppId] = useState(null);
+  const [downloading, setDownloading] = useState(false);
+
+  useEffect(() => {
+    async function loadReceipt() {
+      try {
+        const appRes = await applicationService.getMy();
+        const liveApp = appRes.data.application || (appRes.data.applications && appRes.data.applications[0]);
+        if (liveApp?._id) {
+          setAppId(liveApp._id);
+          const fee = liveApp.branch?.totalFee || liveApp.branch?.admissionFee || 135000;
+          setReceipt({
+            applicationNumber: liveApp.applicationNumber,
+            receiptNumber: `RCPT-2026-${liveApp.id || '001'}`,
+            studentName: liveApp.studentName || 'Aarav Sharma',
+            course: `${liveApp.course?.name || 'B.Tech'} — ${liveApp.branch?.name || 'CSE'}`,
+            academicYear: '2026–27',
+            paymentDate: liveApp.updatedAt || new Date().toISOString(),
+            razorpayPaymentId: 'pay_live_confirmed',
+            razorpayOrderId: 'order_live_confirmed',
+            amount: fee,
+            status: 'Paid',
+            mode: 'Online (Razorpay / Instant Confirmation)',
+            feeBreakdown: [
+              { label: 'Tuition Fee (Annual)', amount: fee > 5000 ? fee - 5000 : fee },
+              { label: 'Admission & Registration Fee', amount: 5000 },
+            ],
+          });
+        }
+      } catch (err) {
+        console.error('Failed to load receipt data:', err);
+      }
+    }
+    loadReceipt();
+  }, []);
+
   const handleDownload = async () => {
+    if (!appId) {
+      toast.error('Application reference not found for download.');
+      return;
+    }
+    setDownloading(true);
     try {
-      // const blob = await paymentService.getReceipt(applicationId);
-      // download blob as PDF
-      toast.success('Receipt downloaded successfully.');
+      const res = await paymentService.getReceipt(appId);
+      const blob = new Blob([res.data], { type: 'application/pdf' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `Receipt-${r.receiptNumber}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      toast.success('Official PDF Receipt downloaded successfully.');
     } catch {
-      toast.error('Download failed. Please try again.');
+      toast.error('Download failed. Falling back to print.');
+      window.print();
+    } finally {
+      setDownloading(false);
     }
   };
-
-  const r = receiptData;
 
   return (
     <DashboardLayout role="student">

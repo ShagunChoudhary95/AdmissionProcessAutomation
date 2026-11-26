@@ -1,24 +1,35 @@
+import { useState, useEffect } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
 import { DashboardLayout } from '../../components/layout/DashboardLayout';
 import { Card, CardBody, CardHeader, CardTitle } from '../../components/ui/Card';
-
-const courseStats = [
-  { name: 'B.Tech', applied: 98, eligible: 82, admitted: 24 },
-  { name: 'M.Tech', applied: 45, eligible: 38, admitted: 10 },
-  { name: 'MBA', applied: 62, eligible: 55, admitted: 15 },
-  { name: 'MCA', applied: 28, eligible: 24, admitted: 5 },
-  { name: 'BCA', applied: 15, eligible: 14, admitted: 2 },
-];
-
-const statusBreakdown = [
-  { name: 'Admitted', value: 56, color: '#0d9488' },
-  { name: 'Doc Verification', value: 42, color: '#7c3aed' },
-  { name: 'Under Review', value: 32, color: '#d97706' },
-  { name: 'Offered', value: 28, color: '#2563eb' },
-  { name: 'Not Eligible / Rejected', value: 30, color: '#dc2626' },
-];
+import { adminService } from '../../services';
 
 export default function Reports() {
+  const [courseStats, setCourseStats] = useState([]);
+  const [statusBreakdown, setStatusBreakdown] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadReports() {
+      try {
+        const res = await adminService.getReports('summary');
+        if (res.data) {
+          if (res.data.courseStats) {
+            setCourseStats(res.data.courseStats);
+          }
+          if (res.data.statusList) {
+            setStatusBreakdown(res.data.statusList);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load reports:', err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadReports();
+  }, []);
+
   return (
     <DashboardLayout role="admin">
       <div className="space-y-6">
@@ -31,35 +42,47 @@ export default function Reports() {
           <Card>
             <CardHeader><CardTitle>Course-wise Funnel</CardTitle></CardHeader>
             <CardBody>
-              <ResponsiveContainer width="100%" height={280}>
-                <BarChart data={courseStats}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                  <XAxis dataKey="name" tick={{ fontSize: 12, fill: '#64748b' }} />
-                  <YAxis tick={{ fontSize: 12, fill: '#64748b' }} />
-                  <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
-                  <Legend wrapperStyle={{ fontSize: 12 }} />
-                  <Bar dataKey="applied" fill="#3b82f6" name="Applied" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="eligible" fill="#0d9488" name="Eligible" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="admitted" fill="#1e3a8a" name="Confirmed" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
+              {courseStats.length > 0 ? (
+                <ResponsiveContainer width="100%" height={280}>
+                  <BarChart data={courseStats}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                    <XAxis dataKey="name" tick={{ fontSize: 12, fill: '#64748b' }} />
+                    <YAxis tick={{ fontSize: 12, fill: '#64748b' }} />
+                    <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
+                    <Legend wrapperStyle={{ fontSize: 12 }} />
+                    <Bar dataKey="applied" fill="#3b82f6" name="Applied" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="eligible" fill="#0d9488" name="Eligible" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="admitted" fill="#1e3a8a" name="Confirmed" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="h-64 flex items-center justify-center text-slate-400 text-sm">
+                  {loading ? 'Loading report data...' : 'No applications available for course analysis.'}
+                </div>
+              )}
             </CardBody>
           </Card>
 
           <Card>
             <CardHeader><CardTitle>Application Status Distribution</CardTitle></CardHeader>
             <CardBody>
-              <ResponsiveContainer width="100%" height={280}>
-                <PieChart>
-                  <Pie data={statusBreakdown} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={95} label>
-                    {statusBreakdown.map((entry) => (
-                      <Cell key={entry.name} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
-                  <Legend wrapperStyle={{ fontSize: 12 }} />
-                </PieChart>
-              </ResponsiveContainer>
+              {statusBreakdown.some(s => s.value > 0) ? (
+                <ResponsiveContainer width="100%" height={280}>
+                  <PieChart>
+                    <Pie data={statusBreakdown} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={95} label>
+                      {statusBreakdown.map((entry) => (
+                        <Cell key={entry.name} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
+                    <Legend wrapperStyle={{ fontSize: 12 }} />
+                  </PieChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="h-64 flex items-center justify-center text-slate-400 text-sm">
+                  {loading ? 'Loading report data...' : 'No active applications in status distribution.'}
+                </div>
+              )}
             </CardBody>
           </Card>
         </div>
@@ -67,4 +90,3 @@ export default function Reports() {
     </DashboardLayout>
   );
 }
-

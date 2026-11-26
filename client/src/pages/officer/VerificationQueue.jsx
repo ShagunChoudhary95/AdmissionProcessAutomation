@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search } from 'lucide-react';
 import { DashboardLayout } from '../../components/layout/DashboardLayout';
@@ -8,23 +8,42 @@ import { DocStatusBadge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
 import { Select } from '../../components/ui/Input';
 import { formatDate } from '../../utils/helpers';
-import { sampleApplications } from '../../data/sampleData';
-
-const queueItems = sampleApplications.map((a, i) => ({
-  ...a,
-  docQueueStatus: ['Pending Verification', 'Re-upload Required', 'Verified', 'Rejected', 'Pending Verification'][i % 5],
-  totalDocs: 5,
-  verifiedDocs: [2, 3, 5, 1, 0][i % 5],
-}));
+import { officerService } from '../../services';
 
 const filterStatuses = ['All', 'Pending Verification', 'Verified', 'Re-upload Required', 'Rejected'];
 
 export default function VerificationQueue() {
   const navigate = useNavigate();
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('All');
   const [search, setSearch] = useState('');
 
-  const filtered = queueItems.filter((item) => {
+  useEffect(() => {
+    async function loadQueue() {
+      try {
+        const res = await officerService.getQueue({ page: 1, limit: 50, search });
+        if (res.data?.applications) {
+          setItems(res.data.applications.map((a, i) => ({
+            ...a,
+            studentName: a.studentName || a.student?.name || 'Student',
+            course: a.course?.name || a.courseId?.name || 'B.Tech',
+            branch: a.branch?.name || a.branchId?.name || 'CSE',
+            docQueueStatus: (a.status === 'VERIFIED' || a.status === 'Verified') ? 'Verified' : ((a.status === 'CORRECTION_REQUIRED' || a.status === 'Correction Required') ? 'Re-upload Required' : 'Pending Verification'),
+            totalDocs: 4,
+            verifiedDocs: (a.status === 'VERIFIED' || a.status === 'Verified') ? 4 : 0,
+          })));
+        }
+      } catch (err) {
+        console.error('Failed to load queue:', err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadQueue();
+  }, [search]);
+
+  const filtered = items.filter((item) => {
     const matchStatus = statusFilter === 'All' || item.docQueueStatus === statusFilter;
     const matchSearch = !search || [item.applicationNumber, item.studentName, item.course].some((v) =>
       v?.toLowerCase().includes(search.toLowerCase())
@@ -43,7 +62,7 @@ export default function VerificationQueue() {
       header: 'Action',
       key: 'action',
       render: (r) => (
-        <Button size="sm" onClick={(e) => { e.stopPropagation(); navigate(`/officer/verify/${r._id}`); }}>
+        <Button size="sm" onClick={(e) => { e.stopPropagation(); navigate(`/officer/verify/${r.id || r._id}`); }}>
           Inspect Docs
         </Button>
       ),

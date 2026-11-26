@@ -1,13 +1,36 @@
 export const STATUS_CONFIG = {
+  // Uppercase Enum keys (from Spring Boot backend)
+  DRAFT: { label: 'Draft', color: 'gray' },
+  SUBMITTED: { label: 'Submitted', color: 'blue' },
+  UNDER_ADMIN_REVIEW: { label: 'Under Review', color: 'amber' },
+  UNDER_VERIFICATION: { label: 'Under Verification', color: 'purple' },
+  DOC_VERIFICATION_PENDING: { label: 'Doc Verification Pending', color: 'purple' },
+  VERIFIED: { label: 'Documents Verified', color: 'teal' },
+  DOCUMENTS_VERIFIED: { label: 'Documents Verified', color: 'teal' },
+  OFFER_ISSUED: { label: 'Admission Offered', color: 'indigo' },
+  ADMISSION_OFFERED: { label: 'Admission Offered', color: 'indigo' },
+  SEAT_RESERVED: { label: 'Seat Reserved', color: 'indigo' },
+  PAYMENT_PENDING: { label: 'Payment Pending', color: 'amber' },
+  ADMISSION_CONFIRMED: { label: 'Admitted', color: 'green' },
+  CORRECTION_REQUIRED: { label: 'Correction Required', color: 'orange' },
+  REJECTED: { label: 'Rejected', color: 'red' },
+  WAITLISTED: { label: 'Waitlisted', color: 'orange' },
+  OFFER_EXPIRED: { label: 'Offer Expired', color: 'red' },
+  WITHDRAWN: { label: 'Withdrawn', color: 'gray' },
+
+  // Title-cased keys (from legacy frontend or UI values)
   Draft: { label: 'Draft', color: 'gray' },
   Submitted: { label: 'Submitted', color: 'blue' },
   'Under Admin Review': { label: 'Under Review', color: 'amber' },
+  'Under Verification': { label: 'Under Verification', color: 'purple' },
   'Correction Required': { label: 'Correction Required', color: 'orange' },
   'Eligibility Approved': { label: 'Eligibility Approved', color: 'teal' },
   'Not Eligible': { label: 'Not Eligible', color: 'red' },
   'Document Verification Pending': { label: 'Doc Verification Pending', color: 'purple' },
   'Documents Verified': { label: 'Documents Verified', color: 'teal' },
+  Verified: { label: 'Documents Verified', color: 'teal' },
   'Admission Offered': { label: 'Admission Offered', color: 'indigo' },
+  'Offer Issued': { label: 'Admission Offered', color: 'indigo' },
   'Seat Reserved': { label: 'Seat Reserved', color: 'indigo' },
   'Payment Pending': { label: 'Payment Pending', color: 'amber' },
   'Admission Confirmed': { label: 'Admitted', color: 'green' },
@@ -18,35 +41,60 @@ export const STATUS_CONFIG = {
 };
 
 export const DOC_STATUS_CONFIG = {
+  NOT_UPLOADED: { label: 'Not Uploaded', color: 'gray' },
   'Not Uploaded': { label: 'Not Uploaded', color: 'gray' },
+  PENDING_VERIFICATION: { label: 'Pending Verification', color: 'amber' },
   'Pending Verification': { label: 'Pending Verification', color: 'amber' },
+  VERIFIED: { label: 'Verified', color: 'green' },
   Verified: { label: 'Verified', color: 'green' },
+  RE_UPLOAD_REQUIRED: { label: 'Re-upload Required', color: 'orange' },
   'Re-upload Required': { label: 'Re-upload Required', color: 'orange' },
+  REUPLOAD_REQUESTED: { label: 'Re-upload Requested', color: 'orange' },
+  'Re-upload Requested': { label: 'Re-upload Requested', color: 'orange' },
+  REJECTED: { label: 'Rejected', color: 'red' },
   Rejected: { label: 'Rejected', color: 'red' },
 };
 
 export const ADMISSION_STEPS = [
+  { key: 'documents', label: 'Document Upload & Verification' },
   { key: 'submitted', label: 'Application Submitted' },
   { key: 'review', label: 'Admin Review' },
-  { key: 'documents', label: 'Document Verification' },
   { key: 'offer', label: 'Admission Offer' },
   { key: 'payment', label: 'Fee Payment' },
   { key: 'confirmed', label: 'Admission Confirmed' },
 ];
 
 export const STATUS_TO_STEP = {
+  DRAFT: 0,
   Draft: 0,
+  DOC_VERIFICATION_PENDING: 0,
+  'Document Verification Pending': 0,
+  SUBMITTED: 1,
   Submitted: 1,
-  'Under Admin Review': 1,
   'Correction Required': 1,
-  'Eligibility Approved': 2,
+  CORRECTION_REQUIRED: 1,
   'Not Eligible': 1,
-  'Document Verification Pending': 2,
-  'Documents Verified': 3,
+  NOT_ELIGIBLE: 1,
+  'Under Admin Review': 2,
+  UNDER_ADMIN_REVIEW: 2,
+  'Under Verification': 2,
+  UNDER_VERIFICATION: 2,
+  'Eligibility Approved': 2,
+  ELIGIBILITY_APPROVED: 2,
+  'Documents Verified': 2,
+  DOCUMENTS_VERIFIED: 2,
+  VERIFIED: 2,
+  Verified: 2,
   'Admission Offered': 3,
+  ADMISSION_OFFERED: 3,
+  'Offer Issued': 3,
+  OFFER_ISSUED: 3,
   'Seat Reserved': 3,
+  SEAT_RESERVED: 3,
   'Payment Pending': 4,
+  PAYMENT_PENDING: 4,
   'Admission Confirmed': 5,
+  ADMISSION_CONFIRMED: 5,
 };
 
 export const ROLES = {
@@ -56,4 +104,3 @@ export const ROLES = {
 };
 
 export const COURSES = ['B.Tech', 'M.Tech', 'MBA', 'MCA', 'BCA'];
-

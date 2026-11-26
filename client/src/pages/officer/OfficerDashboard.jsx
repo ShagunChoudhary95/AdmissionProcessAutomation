@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Clock, CheckCircle, RefreshCw, XCircle, FileCheck } from 'lucide-react';
 import { DashboardLayout } from '../../components/layout/DashboardLayout';
@@ -6,16 +7,46 @@ import { DataTable } from '../../components/ui/DataTable';
 import { DocStatusBadge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
 import { formatDate } from '../../utils/helpers';
-import { sampleApplications } from '../../data/sampleData';
-
-const queuePreview = sampleApplications.slice(0, 4).map((a, i) => ({
-  ...a,
-  pendingDocs: i === 0 ? 3 : i === 1 ? 2 : 1,
-  docQueueStatus: i === 0 ? 'Pending Verification' : i === 1 ? 'Re-upload Required' : 'Verified',
-}));
+import { officerService } from '../../services';
 
 export default function OfficerDashboard() {
   const navigate = useNavigate();
+  const [stats, setStats] = useState({
+    pendingVerification: 0,
+    verifiedToday: 0,
+    rejectedOrReupload: 0,
+    verifiedApplications: 0,
+  });
+  const [queue, setQueue] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadData() {
+      try {
+        const [statsRes, queueRes] = await Promise.all([
+          officerService.getDashboard(),
+          officerService.getQueue({ page: 1, limit: 5 }),
+        ]);
+        if (statsRes.data) {
+          setStats(statsRes.data);
+        }
+        if (queueRes.data?.applications) {
+          setQueue(queueRes.data.applications.map(a => ({
+            ...a,
+            studentName: a.studentName || a.student?.name || 'Student',
+            course: a.course?.name || a.courseId?.name || 'B.Tech',
+            branch: a.branch?.name || a.branchId?.name || 'CSE',
+            docQueueStatus: (a.status === 'VERIFIED' || a.status === 'Verified') ? 'Verified' : ((a.status === 'CORRECTION_REQUIRED' || a.status === 'Correction Required') ? 'Re-upload Required' : 'Pending Verification'),
+          })));
+        }
+      } catch (err) {
+        console.error('Failed to load officer dashboard:', err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadData();
+  }, []);
 
   const columns = [
     { header: 'App. No.', accessor: 'applicationNumber', render: (r) => <span className="font-mono text-xs text-blue-700 font-semibold">{r.applicationNumber}</span> },
@@ -27,7 +58,7 @@ export default function OfficerDashboard() {
       header: '',
       key: 'action',
       render: (r) => (
-        <Button size="sm" variant="primary" onClick={() => navigate(`/officer/verify/${r._id}`)}>
+        <Button size="sm" variant="primary" onClick={() => navigate(`/officer/verify/${r.id || r._id}`)}>
           Verify Docs
         </Button>
       ),
@@ -43,10 +74,10 @@ export default function OfficerDashboard() {
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <SummaryCard title="Pending Queue" value={42} icon={<Clock className="w-5 h-5" />} color="amber" />
-          <SummaryCard title="Verified Today" value={18} icon={<CheckCircle className="w-5 h-5" />} color="teal" />
-          <SummaryCard title="Re-upload Requested" value={9} icon={<RefreshCw className="w-5 h-5" />} color="purple" />
-          <SummaryCard title="Rejected" value={4} icon={<XCircle className="w-5 h-5" />} color="red" />
+          <SummaryCard title="Pending Queue" value={stats.pendingVerification || 0} icon={<Clock className="w-5 h-5" />} color="amber" />
+          <SummaryCard title="Verified Today" value={stats.verifiedToday || 0} icon={<CheckCircle className="w-5 h-5" />} color="teal" />
+          <SummaryCard title="Verified Total" value={stats.verifiedApplications || 0} icon={<CheckCircle className="w-5 h-5" />} color="blue" />
+          <SummaryCard title="Rejected / Re-upload" value={stats.rejectedOrReupload || 0} icon={<XCircle className="w-5 h-5" />} color="red" />
         </div>
 
         <Card>
@@ -57,7 +88,7 @@ export default function OfficerDashboard() {
             </CardTitle>
             <Button size="sm" variant="secondary" onClick={() => navigate('/officer/queue')}>View Full Queue</Button>
           </CardHeader>
-          <DataTable columns={columns} data={queuePreview} pageSize={5} />
+          <DataTable columns={columns} data={queue} pageSize={5} emptyMessage="No applications waiting in verification queue." />
         </Card>
       </div>
     </DashboardLayout>

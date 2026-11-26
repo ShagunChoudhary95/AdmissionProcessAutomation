@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search, Filter, Download } from 'lucide-react';
 import { DashboardLayout } from '../../components/layout/DashboardLayout';
@@ -8,20 +8,57 @@ import { StatusBadge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
 import { Select } from '../../components/ui/Input';
 import { formatDate } from '../../utils/helpers';
-import { sampleApplications } from '../../data/sampleData';
+import { adminService } from '../../services';
 
-const statusOptions = ['All', 'Submitted', 'Under Admin Review', 'Eligibility Approved', 'Document Verification Pending', 'Admission Offered', 'Admission Confirmed', 'Not Eligible', 'Rejected'];
-const courseOptions = ['All', 'B.Tech', 'M.Tech', 'MBA', 'MCA', 'BCA'];
+const statusOptions = ['All', 'Submitted', 'Under Admin Review', 'Under Verification', 'Eligibility Approved', 'Document Verification Pending', 'Admission Offered', 'Admission Confirmed', 'Not Eligible', 'Rejected'];
 
 export default function ApplicationList() {
   const navigate = useNavigate();
   const [status, setStatus] = useState('All');
   const [course, setCourse] = useState('All');
+  const [courseOptions, setCourseOptions] = useState(['All', 'B.Tech', 'MBA', 'MCA']);
   const [search, setSearch] = useState('');
+  const [applications, setApplications] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  const filtered = sampleApplications.filter(a => {
+  useEffect(() => {
+    adminService.getCourses().then(res => {
+      if (res.data?.courses) {
+        setCourseOptions(['All', ...res.data.courses.map(c => c.name)]);
+      }
+    }).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    async function loadApplications() {
+      try {
+        const res = await adminService.getApplications({
+          status: status === 'All' ? undefined : status,
+          search: search || undefined,
+          page: 1,
+          limit: 100,
+        });
+        if (res.data?.applications) {
+          setApplications(res.data.applications.map(a => ({
+            ...a,
+            studentName: a.studentName || a.student?.name || 'Candidate',
+            email: a.email || a.student?.email || 'candidate@example.com',
+            course: a.course?.name || a.courseId?.name || 'B.Tech',
+            branch: a.branch?.name || a.branchId?.name || 'CSE',
+          })));
+        }
+      } catch (err) {
+        console.error('Failed to load applications:', err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadApplications();
+  }, [status, search]);
+
+  const filtered = applications.filter(a => {
     const matchStatus = status === 'All' || a.status === status;
-    const matchCourse = course === 'All' || a.course === course;
+    const matchCourse = course === 'All' || a.course === course || a.course?.includes(course);
     const matchSearch = !search || [a.applicationNumber, a.studentName, a.email].some(v => v?.toLowerCase().includes(search.toLowerCase()));
     return matchStatus && matchCourse && matchSearch;
   });
@@ -44,7 +81,7 @@ export default function ApplicationList() {
     { header: 'Submitted', accessor: 'submittedAt', sortable: true, render: (row) => formatDate(row.submittedAt) },
     { header: 'Status', accessor: 'status', render: (row) => <StatusBadge status={row.status} /> },
     { header: '', key: 'action', width: 100, render: (row) => (
-      <Button size="sm" variant="secondary" onClick={(e) => { e.stopPropagation(); navigate(`/admin/applications/${row._id}`); }}>
+      <Button size="sm" variant="secondary" onClick={(e) => { e.stopPropagation(); navigate(`/admin/applications/${row.id || row._id}`); }}>
         Review
       </Button>
     )},

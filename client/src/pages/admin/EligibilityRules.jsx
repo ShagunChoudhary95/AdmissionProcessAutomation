@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Plus, Trash2, Edit2 } from 'lucide-react';
 import { DashboardLayout } from '../../components/layout/DashboardLayout';
 import { Card, CardBody, CardHeader, CardTitle } from '../../components/ui/Card';
@@ -6,88 +6,85 @@ import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
 import { Modal } from '../../components/ui/Modal';
 import { FormField, Input, Select } from '../../components/ui/Input';
-import { sampleCourses } from '../../data/sampleData';
+import { adminService } from '../../services';
 import toast from 'react-hot-toast';
 
-const initialRules = [
-  {
-    _id: 'er1',
-    course: 'B.Tech',
-    branch: 'Computer Science',
-    description: '12th with Physics & Mathematics, minimum 60% aggregate',
-    criteria: [
-      { field: '12th_percentage', operator: 'gte', value: '60' },
-      { field: 'subjects', operator: 'includes', value: 'Physics, Mathematics' },
-    ],
-    isActive: true,
-  },
-  {
-    _id: 'er2',
-    course: 'B.Tech',
-    branch: 'AI & Data Science',
-    description: '12th with PCM, minimum 65% aggregate',
-    criteria: [
-      { field: '12th_percentage', operator: 'gte', value: '65' },
-      { field: 'subjects', operator: 'includes', value: 'Physics, Mathematics' },
-    ],
-    isActive: true,
-  },
-  {
-    _id: 'er3',
-    course: 'M.Tech',
-    branch: 'AI/ML',
-    description: 'Graduation in CS/IT with minimum 60% and valid GATE score',
-    criteria: [
-      { field: 'graduation_percentage', operator: 'gte', value: '60' },
-      { field: 'entrance_score', operator: 'gte', value: '30' },
-    ],
-    isActive: true,
-  },
-  {
-    _id: 'er4',
-    course: 'MBA',
-    branch: 'Finance',
-    description: 'Graduation in any discipline with minimum 50%',
-    criteria: [{ field: 'graduation_percentage', operator: 'gte', value: '50' }],
-    isActive: true,
-  },
-];
-
 export default function EligibilityRules() {
-  const [rules, setRules] = useState(initialRules);
+  const [rules, setRules] = useState([]);
+  const [courses, setCourses] = useState([]);
   const [modalOpen, setModalOpen] = useState(false);
   const [course, setCourse] = useState('B.Tech');
   const [branch, setBranch] = useState('Computer Science');
   const [description, setDescription] = useState('');
   const [criteria, setCriteria] = useState([{ field: '12th_percentage', operator: 'gte', value: '60' }]);
+  const [loading, setLoading] = useState(true);
+
+  const loadRules = async () => {
+    try {
+      const [ruleRes, courseRes] = await Promise.all([
+        adminService.getEligibilityRules(),
+        adminService.getCourses(),
+      ]);
+      if (ruleRes.data?.rules) {
+        setRules(ruleRes.data.rules.map(r => ({
+          ...r,
+          criteria: r.criteria || (r.criteriaJson ? JSON.parse(r.criteriaJson) : []),
+        })));
+      }
+      if (courseRes.data?.courses) {
+        setCourses(courseRes.data.courses);
+        if (courseRes.data.courses.length > 0 && !course) {
+          setCourse(courseRes.data.courses[0].name);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load eligibility rules:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadRules();
+  }, []);
 
   const addCriterion = () => setCriteria([...criteria, { field: '10th_percentage', operator: 'gte', value: '50' }]);
   const removeCriterion = (idx) => setCriteria(criteria.filter((_, i) => i !== idx));
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!description.trim()) {
       toast.error('Please enter a rule description.');
       return;
     }
-    setRules((prev) => [
-      ...prev,
-      {
-        _id: `er_${Date.now()}`,
+    try {
+      const payload = {
         course,
         branch,
         description,
-        criteria,
+        criteriaJson: JSON.stringify(criteria),
         isActive: true,
-      },
-    ]);
-    toast.success('Eligibility rule saved.');
-    setModalOpen(false);
-    setDescription('');
+      };
+      await adminService.createEligibilityRule(payload);
+      toast.success('Eligibility rule saved in MySQL database.');
+      setModalOpen(false);
+      setDescription('');
+      loadRules();
+    } catch {
+      toast.error('Failed to save eligibility rule.');
+    }
   };
 
-  const toggleRule = (id) => {
-    setRules((prev) => prev.map((r) => (r._id === id ? { ...r, isActive: !r.isActive } : r)));
-    toast.success('Rule status updated.');
+  const toggleRule = async (rule) => {
+    try {
+      await adminService.updateEligibilityRule(rule.id || rule._id, {
+        ...rule,
+        isActive: !rule.isActive,
+      });
+      toast.success('Rule status updated.');
+      loadRules();
+    } catch {
+      toast.error('Failed to toggle rule status.');
+    }
   };
 
   return (
@@ -109,7 +106,7 @@ export default function EligibilityRules() {
                   <CardTitle>{rule.course} — {rule.branch}</CardTitle>
                   <Badge color={rule.isActive ? 'teal' : 'gray'}>{rule.isActive ? 'Active' : 'Inactive'}</Badge>
                 </div>
-                <Button size="sm" variant={rule.isActive ? 'secondary' : 'success'} onClick={() => toggleRule(rule._id)}>
+                <Button size="sm" variant={rule.isActive ? 'secondary' : 'success'} onClick={() => toggleRule(rule)}>
                   {rule.isActive ? 'Disable' : 'Enable'}
                 </Button>
               </CardHeader>
@@ -133,7 +130,7 @@ export default function EligibilityRules() {
           <div className="grid grid-cols-2 gap-4">
             <FormField label="Course" required>
               <Select value={course} onChange={(e) => setCourse(e.target.value)}>
-                {sampleCourses.map((c) => <option key={c._id} value={c.name}>{c.name}</option>)}
+                {courses.map((c) => <option key={c.id || c._id} value={c.name}>{c.name}</option>)}
               </Select>
             </FormField>
             <FormField label="Branch" required>

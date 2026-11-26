@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, CheckCircle, XCircle, RefreshCw, Eye, Download, FileText } from 'lucide-react';
 import { DashboardLayout } from '../../components/layout/DashboardLayout';
@@ -7,30 +7,57 @@ import { DocStatusBadge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
 import { ReasonModal, Modal } from '../../components/ui/Modal';
 import { formatDateTime } from '../../utils/helpers';
-import { sampleDocuments, sampleApplications } from '../../data/sampleData';
+import { officerService, adminService } from '../../services';
 import toast from 'react-hot-toast';
 
 export default function DocumentVerification() {
   const { applicationId } = useParams();
   const navigate = useNavigate();
-  const app = sampleApplications.find((a) => a._id === applicationId) || sampleApplications[0];
-
-  const [docs, setDocs] = useState(
-    sampleDocuments.map((d) => ({
-      ...d,
-      history: d.currentVersion.verifiedAt
-        ? [{ officer: 'Officer A. Singh', decision: d.currentVersion.verificationStatus, timestamp: d.currentVersion.uploadedAt, remarks: d.currentVersion.remarks }]
-        : [],
-    }))
-  );
+  const [app, setApp] = useState({
+    studentName: 'Candidate',
+    applicationNumber: 'ADM2026',
+    course: 'B.Tech',
+    branch: 'CSE',
+  });
+  const [docs, setDocs] = useState([]);
   const [reasonModal, setReasonModal] = useState({ open: false, docId: null, action: null });
   const [previewDoc, setPreviewDoc] = useState(null);
+  const [loading, setLoading] = useState(true);
 
-  const handleVerify = (docId) => {
-    setDocs((prev) =>
-      prev.map((d) =>
-        d._id === docId
-          ? {
+  useEffect(() => {
+    async function loadData() {
+      try {
+        const [appRes, docsRes] = await Promise.all([
+          officerService.getApplication ? officerService.getApplication(applicationId) : adminService.getApplication(applicationId),
+          officerService.getDocuments(applicationId),
+        ]);
+        if (appRes.data) {
+          setApp(appRes.data);
+        }
+        if (docsRes.data?.documents) {
+          setDocs(docsRes.data.documents.map(d => ({
+            ...d,
+            history: d.currentVersion?.verifiedAt
+              ? [{ officer: d.currentVersion.verifiedBy || 'Verification Officer', decision: d.currentVersion.verificationStatus, timestamp: d.currentVersion.verifiedAt, remarks: d.currentVersion.remarks }]
+              : [],
+          })));
+        }
+      } catch (err) {
+        console.error('Failed to load verification documents:', err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadData();
+  }, [applicationId]);
+
+  const handleVerify = async (docId) => {
+    try {
+      await officerService.verifyDoc(docId, { remarks: 'Document verified and authentic' });
+      setDocs((prev) =>
+        prev.map((d) =>
+          d._id === docId || d.id === docId
+            ? {
               ...d,
               currentVersion: {
                 ...d.currentVersion,
@@ -38,23 +65,33 @@ export default function DocumentVerification() {
                 remarks: 'Verified by officer',
               },
               history: [
-                ...d.history,
-                { officer: 'Current Officer', decision: 'Verified', timestamp: new Date().toISOString(), remarks: 'Document clear and valid' },
+                ...(d.history || []),
+                { officer: 'Verification Officer', decision: 'Verified', timestamp: new Date().toISOString(), remarks: 'Document verified and authentic' },
               ],
             }
-          : d
-      )
-    );
-    toast.success('Document marked as Verified.');
+            : d
+        )
+      );
+      toast.success('Document marked as Verified.');
+    } catch {
+      toast.error('Failed to verify document.');
+    }
   };
 
-  const handleReasonSubmit = (reason) => {
+  const handleReasonSubmit = async (reason) => {
     const { docId, action } = reasonModal;
     const newStatus = action === 'reject' ? 'Rejected' : 'Re-upload Required';
-    setDocs((prev) =>
-      prev.map((d) =>
-        d._id === docId
-          ? {
+    try {
+      if (action === 'reject') {
+        await officerService.rejectDoc(docId, { reason });
+      } else {
+        await officerService.requestReupload(docId, { reason });
+      }
+
+      setDocs((prev) =>
+        prev.map((d) =>
+          d._id === docId || d.id === docId
+            ? {
               ...d,
               currentVersion: {
                 ...d.currentVersion,
@@ -62,15 +99,18 @@ export default function DocumentVerification() {
                 remarks: reason,
               },
               history: [
-                ...d.history,
-                { officer: 'Current Officer', decision: newStatus, timestamp: new Date().toISOString(), remarks: reason },
+                ...(d.history || []),
+                { officer: 'Verification Officer', decision: newStatus, timestamp: new Date().toISOString(), remarks: reason },
               ],
             }
-          : d
-      )
-    );
-    toast.success(`Document marked as ${newStatus}.`);
-    setReasonModal({ open: false, docId: null, action: null });
+            : d
+        )
+      );
+      toast.success(`Document marked as ${newStatus}.`);
+      setReasonModal({ open: false, docId: null, action: null });
+    } catch {
+      toast.error('Failed to submit verification action.');
+    }
   };
 
   return (
@@ -94,7 +134,7 @@ export default function DocumentVerification() {
             const hasFile = !!cv.filePath;
 
             return (
-              <Card key={doc._id}>
+              <Card key={doc.id || doc._id}>
                 <CardBody className="space-y-3">
                   <div className="flex flex-wrap items-center justify-between gap-4">
                     <div className="flex items-center gap-3">
@@ -117,14 +157,14 @@ export default function DocumentVerification() {
                         <Button size="sm" variant="secondary" leftIcon={<Eye className="w-3.5 h-3.5" />} onClick={() => setPreviewDoc(doc)}>
                           Preview
                         </Button>
-                        <Button size="sm" variant="success" leftIcon={<CheckCircle className="w-3.5 h-3.5" />} onClick={() => handleVerify(doc._id)}>
+                        <Button size="sm" variant="success" leftIcon={<CheckCircle className="w-3.5 h-3.5" />} onClick={() => handleVerify(doc.id || doc._id)}>
                           Verify
                         </Button>
                         <Button
                           size="sm"
                           variant="warning"
                           leftIcon={<RefreshCw className="w-3.5 h-3.5" />}
-                          onClick={() => setReasonModal({ open: true, docId: doc._id, action: 'reupload' })}
+                          onClick={() => setReasonModal({ open: true, docId: doc.id || doc._id, action: 'reupload' })}
                         >
                           Request Re-upload
                         </Button>
@@ -132,7 +172,7 @@ export default function DocumentVerification() {
                           size="sm"
                           variant="danger"
                           leftIcon={<XCircle className="w-3.5 h-3.5" />}
-                          onClick={() => setReasonModal({ open: true, docId: doc._id, action: 'reject' })}
+                          onClick={() => setReasonModal({ open: true, docId: doc.id || doc._id, action: 'reject' })}
                         >
                           Reject
                         </Button>

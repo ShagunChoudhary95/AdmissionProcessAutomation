@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import { DashboardLayout } from '../../components/layout/DashboardLayout';
 import { Card, CardBody, CardHeader, CardTitle } from '../../components/ui/Card';
@@ -6,77 +6,74 @@ import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
 import { Modal } from '../../components/ui/Modal';
 import { FormField, Input, Select } from '../../components/ui/Input';
-import { sampleCourses } from '../../data/sampleData';
+import { adminService } from '../../services';
 import toast from 'react-hot-toast';
 
-const initialMeritRules = [
-  {
-    _id: 'mr1',
-    course: 'B.Tech',
-    branch: 'All Branches',
-    description: '80% weightage to 12th Marks + 20% to 10th Marks',
-    formula: [
-      { component: '12th Marks', source: '12th_percentage', weight: 0.8 },
-      { component: '10th Marks', source: '10th_percentage', weight: 0.2 },
-    ],
-    isActive: true,
-  },
-  {
-    _id: 'mr2',
-    course: 'M.Tech',
-    branch: 'All Branches',
-    description: '60% Entrance Score + 40% Graduation Marks',
-    formula: [
-      { component: 'Entrance Exam', source: 'entrance_score', weight: 0.6 },
-      { component: 'Graduation Marks', source: 'graduation_percentage', weight: 0.4 },
-    ],
-    isActive: true,
-  },
-  {
-    _id: 'mr3',
-    course: 'MBA',
-    branch: 'All Branches',
-    description: '50% Entrance Exam + 30% Graduation + 20% 12th Marks',
-    formula: [
-      { component: 'Entrance Exam', source: 'entrance_score', weight: 0.5 },
-      { component: 'Graduation Marks', source: 'graduation_percentage', weight: 0.3 },
-      { component: '12th Marks', source: '12th_percentage', weight: 0.2 },
-    ],
-    isActive: true,
-  },
-];
-
 export default function MeritRules() {
-  const [rules, setRules] = useState(initialMeritRules);
+  const [rules, setRules] = useState([]);
+  const [courses, setCourses] = useState([]);
   const [modalOpen, setModalOpen] = useState(false);
   const [course, setCourse] = useState('B.Tech');
   const [branch, setBranch] = useState('All Branches');
   const [description, setDescription] = useState('');
+  const [loading, setLoading] = useState(true);
   const [formula, setFormula] = useState([
     { component: '12th Marks', source: '12th_percentage', weight: 0.7 },
     { component: 'Entrance Exam', source: 'entrance_score', weight: 0.3 },
   ]);
 
+  const loadRules = async () => {
+    try {
+      const [ruleRes, courseRes] = await Promise.all([
+        adminService.getMeritRules(),
+        adminService.getCourses(),
+      ]);
+      if (ruleRes.data?.rules) {
+        setRules(ruleRes.data.rules.map(r => ({
+          ...r,
+          formula: r.formula || (r.formulaJson ? JSON.parse(r.formulaJson) : []),
+        })));
+      }
+      if (courseRes.data?.courses) {
+        setCourses(courseRes.data.courses);
+        if (courseRes.data.courses.length > 0 && !course) {
+          setCourse(courseRes.data.courses[0].name);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load merit rules:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadRules();
+  }, []);
+
   const totalWeight = formula.reduce((s, f) => s + Number(f.weight || 0), 0);
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (Math.abs(totalWeight - 1) > 0.01) {
       toast.error('Weights must sum to 1.0 (100%).');
       return;
     }
-    setRules((prev) => [
-      ...prev,
-      {
-        _id: `mr_${Date.now()}`,
+
+    try {
+      const payload = {
         course,
         branch,
         description: description || formula.map((f) => `${Math.round(f.weight * 100)}% ${f.component}`).join(' + '),
-        formula,
+        formulaJson: JSON.stringify(formula),
         isActive: true,
-      },
-    ]);
-    toast.success('Merit formula saved.');
-    setModalOpen(false);
+      };
+      await adminService.createMeritRule(payload);
+      toast.success('Merit formula saved in MySQL database.');
+      setModalOpen(false);
+      loadRules();
+    } catch {
+      toast.error('Failed to save merit rule.');
+    }
   };
 
   return (
@@ -120,7 +117,7 @@ export default function MeritRules() {
           <div className="grid grid-cols-2 gap-4">
             <FormField label="Course" required>
               <Select value={course} onChange={(e) => setCourse(e.target.value)}>
-                {sampleCourses.map((c) => <option key={c._id} value={c.name}>{c.name}</option>)}
+                {courses.map((c) => <option key={c.id || c._id} value={c.name}>{c.name}</option>)}
               </Select>
             </FormField>
             <FormField label="Branch" required>
