@@ -1,20 +1,19 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { FileText, Upload, CreditCard, CheckCircle, AlertCircle } from 'lucide-react';
+import { FileText, Upload, CreditCard, CheckCircle, AlertCircle, FileCheck, ArrowRight } from 'lucide-react';
 import { DashboardLayout } from '../../components/layout/DashboardLayout';
 import { Card, CardBody, CardHeader, CardTitle } from '../../components/ui/Card';
-import { StatusBadge } from '../../components/ui/Badge';
+import { StatusBadge, DocStatusBadge } from '../../components/ui/Badge';
 import { ProgressTracker } from '../../components/ui/ProgressTracker';
 import { Button } from '../../components/ui/Button';
 import { formatDate, formatCurrency } from '../../utils/helpers';
 import { useAuthStore } from '../../store/authStore';
 import { useNotificationStore } from '../../store/notificationStore';
 import { applicationService, documentService, notificationService } from '../../services';
-import { sampleNotifications } from '../../data/sampleData';
 
 const quickActions = [
-  { label: 'Personal & Academic', href: '/student/profile', icon: FileText, color: 'bg-teal-50 text-teal-700' },
   { label: 'Upload Documents', href: '/student/documents', icon: Upload, color: 'bg-blue-50 text-blue-700' },
+  { label: 'Personal & Academic', href: '/student/profile', icon: FileText, color: 'bg-teal-50 text-teal-700' },
   { label: 'Pay Fees', href: '/student/payment', icon: CreditCard, color: 'bg-amber-50 text-amber-700' },
   { label: 'Check Status', href: '/student/status', icon: CheckCircle, color: 'bg-green-50 text-green-700' },
 ];
@@ -39,17 +38,18 @@ export default function StudentDashboard() {
         setApp(myApp);
         setNotifications(notifRes.data.notifications || []);
 
-        if (myApp?._id) {
-          const docRes = await documentService.list(myApp._id);
+        const appId = myApp?._id || myApp?.id;
+        if (appId) {
+          const docRes = await documentService.list(appId);
           const docs = docRes.data.documents || [];
           const reqDocs = docs.filter((d) => d.requiredForCourse);
-          const verified = reqDocs.filter((d) => d.currentVersion?.verificationStatus === 'Verified').length;
+          const verified = reqDocs.filter((d) => d.currentVersion?.verificationStatus === 'Verified' || d.currentVersion?.verificationStatus === 'VERIFIED').length;
           const uploaded = docs.filter((d) => d.currentVersion?.filePath).length;
-          const reuploadDocs = docs.filter((d) => d.currentVersion?.verificationStatus === 'Re-upload Required');
+          const reuploadDocs = docs.filter((d) => d.currentVersion?.verificationStatus === 'Re-upload Required' || d.currentVersion?.verificationStatus === 'RE_UPLOAD_REQUIRED' || d.currentVersion?.verificationStatus === 'REUPLOAD_REQUESTED');
           setDocCounts({ uploaded, required: reqDocs.length || docs.length, verified, reuploadDocs });
         }
       } catch {
-        setNotifications(sampleNotifications);
+        setNotifications([]);
       } finally {
         if (active) setLoading(false);
       }
@@ -65,7 +65,7 @@ export default function StudentDashboard() {
       <div className="space-y-6 max-w-5xl">
         <div>
           <h2 className="text-xl font-bold text-slate-800">Welcome back, {user?.name?.split(' ')[0] || 'Student'}!</h2>
-          <p className="text-sm text-slate-500 mt-1">Track your admission progress and complete pending steps below.</p>
+          <p className="text-sm text-slate-500 mt-1">Track your admission progress, upload verification documents, and check status below.</p>
         </div>
 
         {/* Progress tracker card */}
@@ -81,6 +81,77 @@ export default function StudentDashboard() {
           </CardHeader>
           <CardBody className="pt-6 pb-8">
             <ProgressTracker status={app?.status || 'Draft'} />
+          </CardBody>
+        </Card>
+
+        {/* Action Required: Document Re-upload alerts */}
+        {docCounts.reuploadDocs.map((doc) => (
+          <div key={doc._id} className="flex items-start gap-3 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+            <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="text-sm font-semibold text-amber-800">Action Required: {doc.documentType}</p>
+              <p className="text-sm text-amber-700 mt-0.5">{doc.currentVersion?.remarks}</p>
+            </div>
+            <Link to="/student/documents">
+              <Button size="sm" variant="warning">Re-upload Now</Button>
+            </Link>
+          </div>
+        ))}
+
+        {/* 1. DOCUMENT VERIFICATION PART - PLACED FIRST */}
+        <Card className="border-blue-100 shadow-sm">
+          <CardHeader className="flex items-center justify-between border-b border-slate-100 pb-3">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-700 flex items-center justify-center">
+                <FileCheck className="w-4 h-4" />
+              </div>
+              <div>
+                <CardTitle>Document Upload & Verification</CardTitle>
+                <p className="text-xs text-slate-500">Required certificates, marksheets, and identity proof</p>
+              </div>
+            </div>
+            <Link to="/student/documents">
+              <Button size="sm" variant="primary" rightIcon={<ArrowRight className="w-3.5 h-3.5" />}>
+                Upload Documents
+              </Button>
+            </Link>
+          </CardHeader>
+          <CardBody className="py-4 space-y-4">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="p-3 bg-slate-50 rounded-lg border border-slate-100">
+                <p className="text-xs text-slate-500">Required</p>
+                <p className="text-lg font-bold text-slate-800 mt-0.5">{docCounts.required || 4}</p>
+              </div>
+              <div className="p-3 bg-blue-50 rounded-lg border border-blue-100">
+                <p className="text-xs text-blue-600 font-medium">Uploaded</p>
+                <p className="text-lg font-bold text-blue-800 mt-0.5">{docCounts.uploaded}</p>
+              </div>
+              <div className="p-3 bg-teal-50 rounded-lg border border-teal-100">
+                <p className="text-xs text-teal-600 font-medium">Verified by Officer</p>
+                <p className="text-lg font-bold text-teal-800 mt-0.5">{docCounts.verified}</p>
+              </div>
+              <div className="p-3 bg-amber-50 rounded-lg border border-amber-100">
+                <p className="text-xs text-amber-600 font-medium">Pending Review</p>
+                <p className="text-lg font-bold text-amber-800 mt-0.5">
+                  {Math.max(0, (docCounts.uploaded || 0) - (docCounts.verified || 0))}
+                </p>
+              </div>
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between text-xs mb-1.5">
+                <span className="font-medium text-slate-700">Verification Progress</span>
+                <span className="text-slate-500 font-semibold">
+                  {docCounts.required > 0 ? Math.round((docCounts.verified / docCounts.required) * 100) : 0}% Complete
+                </span>
+              </div>
+              <div className="h-2.5 bg-slate-100 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-teal-500 rounded-full transition-all duration-300"
+                  style={{ width: `${docCounts.required > 0 ? (docCounts.verified / docCounts.required) * 100 : 0}%` }}
+                />
+              </div>
+            </div>
           </CardBody>
         </Card>
 
@@ -100,71 +171,60 @@ export default function StudentDashboard() {
           ))}
         </div>
 
+        {/* 2. APPLICATION SUBMISSION & DETAILS PART */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <Card className="md:col-span-2">
-            <CardHeader>
-              <CardTitle>Application Summary</CardTitle>
+            <CardHeader className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div>
+                <CardTitle>Application Submission Summary</CardTitle>
+                <p className="text-xs text-slate-500">Program allocation and enrollment details</p>
+              </div>
+              {app && <StatusBadge status={app.status || 'Submitted'} />}
             </CardHeader>
-            <CardBody className="space-y-3">
+            <CardBody className="space-y-4 pt-4">
               {loading ? (
                 <div className="h-28 bg-slate-100 rounded animate-pulse" />
               ) : !app ? (
-                <div className="py-4 text-center space-y-3">
-                  <p className="text-sm text-slate-500">You haven't started an application yet.</p>
-                  <Link to="/student/profile"><Button size="sm">Start Application</Button></Link>
+                <div className="py-6 text-center space-y-3">
+                  <p className="text-sm text-slate-500">You haven't submitted an application yet.</p>
+                  <Link to="/student/profile"><Button size="sm">Start Application Now</Button></Link>
                 </div>
               ) : (
-                <>
-                  <div className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
-                    <div>
-                      <p className="text-xs text-slate-500">Course</p>
-                      <p className="font-semibold text-slate-800">{app.courseId?.name || 'Not selected'}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-slate-500">Branch</p>
-                      <p className="font-semibold text-slate-800">{app.branchId?.name || 'Not selected'}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-slate-500">Merit Score</p>
-                      <p className="font-semibold text-slate-800">{app.meritScore != null ? `${app.meritScore} / 100` : '—'}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-slate-500">Total Fees</p>
-                      <p className="font-semibold text-slate-800">{formatCurrency(app.branchId?.fees?.total)}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-slate-500">Submitted</p>
-                      <p className="font-semibold text-slate-800">{formatDate(app.submittedAt)}</p>
-                    </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-4 text-sm">
+                  <div>
+                    <p className="text-xs text-slate-500">Target Course</p>
+                    <p className="font-semibold text-slate-800 mt-0.5">{app.courseId?.name || app.course?.name || 'Not selected'}</p>
                   </div>
-
-                  {docCounts.required > 0 && (
-                    <div className="pt-2 border-t border-slate-100">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-xs font-medium text-slate-600">Documents</span>
-                        <span className="text-xs text-slate-500">{docCounts.verified} verified / {docCounts.required} required</span>
-                      </div>
-                      <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-teal-500 rounded-full transition-all"
-                          style={{ width: `${(docCounts.verified / docCounts.required) * 100}%` }}
-                        />
-                      </div>
-                      <div className="mt-2 flex justify-between text-xs text-slate-500">
-                        <span>{docCounts.uploaded} uploaded</span>
-                        <Link to="/student/documents" className="text-blue-700 hover:underline font-medium">
-                          Manage →
-                        </Link>
-                      </div>
-                    </div>
-                  )}
-                </>
+                  <div>
+                    <p className="text-xs text-slate-500">Allotted Branch</p>
+                    <p className="font-semibold text-slate-800 mt-0.5">{app.branchId?.name || app.branch?.name || 'Not selected'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-500">Merit Score</p>
+                    <p className="font-semibold text-blue-700 mt-0.5">{app.meritScore != null ? `${app.meritScore} / 100` : '—'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-500">Admission Fee</p>
+                    <p className="font-semibold text-slate-800 mt-0.5">
+                      {formatCurrency(app.branch?.admissionFee || app.branchId?.fees?.total || 135000)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-500">Submission Date</p>
+                    <p className="font-semibold text-slate-800 mt-0.5">{formatDate(app.submittedAt)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-500">Application Number</p>
+                    <p className="font-mono font-semibold text-blue-700 mt-0.5">{app.applicationNumber}</p>
+                  </div>
+                </div>
               )}
             </CardBody>
           </Card>
 
+          {/* Recent updates */}
           <Card>
-            <CardHeader className="flex items-center justify-between">
+            <CardHeader className="flex items-center justify-between border-b border-slate-100 pb-3">
               <CardTitle>Recent Updates</CardTitle>
               {unread.length > 0 && (
                 <span className="bg-red-100 text-red-600 text-xs font-bold px-1.5 py-0.5 rounded-full">{unread.length}</span>
@@ -173,10 +233,10 @@ export default function StudentDashboard() {
             <CardBody className="p-0">
               <div className="divide-y divide-slate-100">
                 {notifications.length === 0 ? (
-                  <p className="text-xs text-slate-400 text-center py-6">No notifications yet</p>
+                  <p className="text-xs text-slate-400 text-center py-8">No notifications yet</p>
                 ) : (
                   notifications.slice(0, 4).map((n) => (
-                    <div key={n._id} className={`px-5 py-3 ${!n.isRead ? 'bg-blue-50/50' : ''}`}>
+                    <div key={n._id || n.id} className={`px-5 py-3 ${!n.isRead ? 'bg-blue-50/50' : ''}`}>
                       <div className="flex items-start gap-2">
                         {!n.isRead && <div className="w-1.5 h-1.5 bg-blue-600 rounded-full mt-1 flex-shrink-0" />}
                         <div className={!n.isRead ? '' : 'ml-3.5'}>
@@ -191,19 +251,6 @@ export default function StudentDashboard() {
             </CardBody>
           </Card>
         </div>
-
-        {docCounts.reuploadDocs.map((doc) => (
-          <div key={doc._id} className="flex items-start gap-3 p-4 bg-amber-50 border border-amber-200 rounded-lg">
-            <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
-            <div className="flex-1">
-              <p className="text-sm font-semibold text-amber-800">Action Required: {doc.documentType}</p>
-              <p className="text-sm text-amber-700 mt-0.5">{doc.currentVersion?.remarks}</p>
-            </div>
-            <Link to="/student/documents">
-              <Button size="sm" variant="warning">Re-upload</Button>
-            </Link>
-          </div>
-        ))}
       </div>
     </DashboardLayout>
   );

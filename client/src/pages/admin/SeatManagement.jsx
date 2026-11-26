@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Edit2 } from 'lucide-react';
 import { DashboardLayout } from '../../components/layout/DashboardLayout';
 import { Card } from '../../components/ui/Card';
@@ -7,34 +7,59 @@ import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
 import { Modal } from '../../components/ui/Modal';
 import { FormField, Input } from '../../components/ui/Input';
-import { sampleSeatData } from '../../data/sampleData';
+import { adminService } from '../../services';
 import toast from 'react-hot-toast';
 
 export default function SeatManagement() {
-  const [seats, setSeats] = useState(sampleSeatData.map((s, i) => ({ ...s, _id: `s_${i}` })));
+  const [seats, setSeats] = useState([]);
   const [editing, setEditing] = useState(null);
   const [totalSeats, setTotalSeats] = useState('');
+  const [loading, setLoading] = useState(true);
+
+  const loadSeats = async () => {
+    try {
+      const res = await adminService.getSeats();
+      if (res.data?.seats) {
+        setSeats(res.data.seats.map(s => ({
+          ...s,
+          course: s.courseName,
+          branch: s.branchName,
+          total: s.totalSeats,
+          reserved: s.reservedSeats || 0,
+          confirmed: s.filledSeats || 0,
+          available: s.availableSeats,
+        })));
+      }
+    } catch (err) {
+      console.error('Failed to load seats:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadSeats();
+  }, []);
 
   const openEdit = (row) => {
     setEditing(row);
     setTotalSeats(String(row.total));
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     const num = Number(totalSeats);
-    if (isNaN(num) || num < editing.confirmed + editing.reserved) {
-      toast.error(`Seat capacity cannot be less than occupied seats (${editing.confirmed + editing.reserved}).`);
+    if (isNaN(num) || num < (editing.confirmed || 0) + (editing.reserved || 0)) {
+      toast.error(`Seat capacity cannot be less than occupied seats (${(editing.confirmed || 0) + (editing.reserved || 0)}).`);
       return;
     }
-    setSeats((prev) =>
-      prev.map((s) =>
-        s._id === editing._id
-          ? { ...s, total: num, available: num - s.confirmed - s.reserved }
-          : s
-      )
-    );
-    toast.success('Seat capacity updated.');
-    setEditing(null);
+    try {
+      await adminService.updateSeats(editing.branchId || editing.id, { totalSeats: num });
+      toast.success('Seat capacity updated in database.');
+      setEditing(null);
+      loadSeats();
+    } catch {
+      toast.error('Failed to update seat capacity.');
+    }
   };
 
   const columns = [

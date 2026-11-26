@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { Users, FileText, CheckCircle, XCircle, Clock, GraduationCap, Upload } from 'lucide-react';
 import { DashboardLayout } from '../../components/layout/DashboardLayout';
 import { SummaryCard } from '../../components/ui/Card';
@@ -6,21 +7,53 @@ import { DataTable } from '../../components/ui/DataTable';
 import { StatusBadge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
 import { formatDate } from '../../utils/helpers';
-import { sampleApplications, sampleAdminStats, sampleSeatData } from '../../data/sampleData';
+import { adminService } from '../../services';
 import { useNavigate } from 'react-router-dom';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
-const chartData = [
-  { name: 'B.Tech', applications: 98, admitted: 24 },
-  { name: 'M.Tech', applications: 45, admitted: 10 },
-  { name: 'MBA', applications: 62, admitted: 15 },
-  { name: 'MCA', applications: 28, admitted: 5 },
-  { name: 'BCA', applications: 15, admitted: 2 },
+const defaultChartData = [
+  { name: 'B.Tech', applications: 12, admitted: 4 },
+  { name: 'MBA', applications: 8, admitted: 3 },
+  { name: 'MCA', applications: 6, admitted: 2 },
 ];
 
 export default function AdminDashboard() {
   const navigate = useNavigate();
-  const s = sampleAdminStats;
+  const [stats, setStats] = useState({
+    totalApplications: 0,
+    submitted: 0,
+    underVerification: 0,
+    verified: 0,
+    offersIssued: 0,
+    confirmed: 0,
+    rejected: 0,
+  });
+  const [recentApps, setRecentApps] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadDashboard() {
+      try {
+        const res = await adminService.getDashboard();
+        if (res.data) {
+          setStats(res.data);
+          if (res.data.recentApplications) {
+            setRecentApps(res.data.recentApplications.map(a => ({
+              ...a,
+              studentName: a.studentName || a.student?.name || 'Student',
+              course: a.course?.name || a.courseId?.name || 'B.Tech',
+              branch: a.branch?.name || a.branchId?.name || 'CSE',
+            })));
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load admin stats:', err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadDashboard();
+  }, []);
 
   const recentColumns = [
     { header: 'App. No.', accessor: 'applicationNumber', width: 160, render: (row) => <span className="font-mono text-xs">{row.applicationNumber}</span> },
@@ -28,7 +61,7 @@ export default function AdminDashboard() {
     { header: 'Course / Branch', key: 'course', render: (row) => `${row.course} · ${row.branch}` },
     { header: 'Submitted', accessor: 'submittedAt', sortable: true, render: (row) => formatDate(row.submittedAt) },
     { header: 'Status', accessor: 'status', render: (row) => <StatusBadge status={row.status} /> },
-    { header: '', key: 'action', render: (row) => <Button size="sm" variant="ghost" onClick={() => navigate(`/admin/applications/${row._id}`)}>Review →</Button> },
+    { header: '', key: 'action', render: (row) => <Button size="sm" variant="ghost" onClick={() => navigate(`/admin/applications/${row.id || row._id}`)}>Review →</Button> },
   ];
 
   return (
@@ -36,17 +69,17 @@ export default function AdminDashboard() {
       <div className="space-y-6">
         {/* Stats */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <SummaryCard title="Total Applications" value={s.totalApplications} icon={<FileText className="w-5 h-5" />} color="blue" />
-          <SummaryCard title="Pending Review" value={s.pendingReview} icon={<Clock className="w-5 h-5" />} color="amber" />
-          <SummaryCard title="Eligible" value={s.eligibleApplications} icon={<CheckCircle className="w-5 h-5" />} color="teal" />
-          <SummaryCard title="Confirmed" value={s.admissionsConfirmed} icon={<GraduationCap className="w-5 h-5" />} color="green" />
+          <SummaryCard title="Total Applications" value={stats.totalApplications || 0} icon={<FileText className="w-5 h-5" />} color="blue" />
+          <SummaryCard title="Pending Review" value={stats.submitted || 0} icon={<Clock className="w-5 h-5" />} color="amber" />
+          <SummaryCard title="Verified Docs" value={stats.verified || 0} icon={<CheckCircle className="w-5 h-5" />} color="teal" />
+          <SummaryCard title="Confirmed" value={stats.confirmed || 0} icon={<GraduationCap className="w-5 h-5" />} color="green" />
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <SummaryCard title="Not Eligible" value={s.ineligibleApplications} icon={<XCircle className="w-5 h-5" />} color="red" />
-          <SummaryCard title="Doc Verification" value={s.pendingDocVerification} icon={<Upload className="w-5 h-5" />} color="purple" />
-          <SummaryCard title="Docs Verified" value={s.documentsVerified} icon={<CheckCircle className="w-5 h-5" />} color="indigo" />
-          <SummaryCard title="Total Students" value={s.totalApplications} icon={<Users className="w-5 h-5" />} color="blue" subtitle="registered" />
+          <SummaryCard title="Rejected" value={stats.rejected || 0} icon={<XCircle className="w-5 h-5" />} color="red" />
+          <SummaryCard title="In Verification" value={stats.underVerification || 0} icon={<Upload className="w-5 h-5" />} color="purple" />
+          <SummaryCard title="Offers Issued" value={stats.offersIssued || 0} icon={<CheckCircle className="w-5 h-5" />} color="indigo" />
+          <SummaryCard title="Total Seats" value={stats.totalSeats || 600} icon={<Users className="w-5 h-5" />} color="blue" subtitle={`${stats.availableSeats || 0} seats left`} />
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
@@ -55,7 +88,7 @@ export default function AdminDashboard() {
             <CardHeader><CardTitle>Applications by Course</CardTitle></CardHeader>
             <CardBody>
               <ResponsiveContainer width="100%" height={220}>
-                <BarChart data={chartData} barSize={18} barCategoryGap={28}>
+                <BarChart data={defaultChartData} barSize={18} barCategoryGap={28}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
                   <XAxis dataKey="name" tick={{ fontSize: 12, fill: '#64748b' }} axisLine={false} tickLine={false} />
                   <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
@@ -75,7 +108,7 @@ export default function AdminDashboard() {
             </CardHeader>
             <CardBody className="p-0">
               <div className="divide-y divide-slate-100">
-                {sampleSeatData.slice(0, 5).map((s, i) => (
+                {(stats.seatData || []).slice(0, 5).map((s, i) => (
                   <div key={i} className="px-5 py-3">
                     <div className="flex justify-between text-xs mb-1">
                       <span className="font-medium text-slate-700 truncate max-w-32">{s.branch}</span>
@@ -84,11 +117,14 @@ export default function AdminDashboard() {
                     <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
                       <div
                         className={`h-full rounded-full ${s.available > 20 ? 'bg-teal-500' : s.available > 5 ? 'bg-amber-400' : 'bg-red-500'}`}
-                        style={{ width: `${(s.available / s.total) * 100}%` }}
+                        style={{ width: `${s.total > 0 ? (s.available / s.total) * 100 : 0}%` }}
                       />
                     </div>
                   </div>
                 ))}
+                {(!stats.seatData || stats.seatData.length === 0) && (
+                  <p className="p-4 text-xs text-slate-400 text-center">No branch seats available</p>
+                )}
               </div>
             </CardBody>
           </Card>
@@ -102,8 +138,9 @@ export default function AdminDashboard() {
           </CardHeader>
           <DataTable
             columns={recentColumns}
-            data={sampleApplications}
+            data={recentApps}
             pageSize={5}
+            emptyMessage="No applications received yet."
           />
         </Card>
       </div>

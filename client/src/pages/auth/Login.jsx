@@ -130,15 +130,6 @@ export default function Login() {
               </Link>
             </p>
           </div>
-
-          <div className="mt-6 p-3 bg-amber-50 border border-amber-200 rounded-lg">
-            <p className="text-xs font-semibold text-amber-700 mb-2">Demo credentials</p>
-            <div className="space-y-1 text-xs text-amber-700">
-              <p><span className="font-medium">Student:</span> student@demo.com / demo1234</p>
-              <p><span className="font-medium">Admin:</span> admin@demo.com / demo1234</p>
-              <p><span className="font-medium">Officer:</span> officer@demo.com / demo1234</p>
-            </div>
-          </div>
         </div>
       </div>
     </div>

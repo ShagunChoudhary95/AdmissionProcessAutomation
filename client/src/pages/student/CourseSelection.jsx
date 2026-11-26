@@ -7,11 +7,10 @@ import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
 import { formatCurrency } from '../../utils/helpers';
 import { courseService, applicationService } from '../../services';
-import { sampleCourses } from '../../data/sampleData';
 import toast from 'react-hot-toast';
 
 export default function CourseSelection() {
-  const [courses, setCourses] = useState(sampleCourses);
+  const [courses, setCourses] = useState([]);
   const [selectedCourse, setSelectedCourse] = useState(null);
   const [selectedBranch, setSelectedBranch] = useState(null);
   const [expandedCourse, setExpandedCourse] = useState('B.Tech');

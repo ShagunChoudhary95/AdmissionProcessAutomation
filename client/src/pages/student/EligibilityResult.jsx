@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { CheckCircle, XCircle, AlertCircle, ArrowRight } from 'lucide-react';
 import { DashboardLayout } from '../../components/layout/DashboardLayout';
@@ -6,6 +6,7 @@ import { Card, CardBody, CardHeader, CardTitle, CardFooter } from '../../compone
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
 import { formatCurrency } from '../../utils/helpers';
+import { applicationService } from '../../services';
 import toast from 'react-hot-toast';
 
 // Simulated eligibility result (from backend in Phase 5)
@@ -46,9 +47,30 @@ const ineligibleResult = {
 };
 
 export default function EligibilityResult() {
-  const [result] = useState(eligibilityResult); // swap to ineligibleResult to test
+  const [result, setResult] = useState(eligibilityResult);
+  const [loading, setLoading] = useState(true);
   const [chosenAlternative, setChosenAlternative] = useState(null);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    async function loadEligibility() {
+      try {
+        const appRes = await applicationService.getMy();
+        const app = appRes.data.application || (appRes.data.applications && appRes.data.applications[0]);
+        if (app?._id) {
+          const res = await applicationService.checkEligibility(app._id);
+          if (res.data) {
+            setResult(res.data);
+          }
+        }
+      } catch (err) {
+        console.error("Could not fetch live eligibility:", err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadEligibility();
+  }, []);
 
   const handleAlternativeSelect = (alt) => {
     setChosenAlternative(alt);

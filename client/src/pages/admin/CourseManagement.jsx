@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Plus, Edit2, Power } from 'lucide-react';
 import { DashboardLayout } from '../../components/layout/DashboardLayout';
 import { Card, CardHeader, CardTitle } from '../../components/ui/Card';
@@ -7,33 +7,67 @@ import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
 import { Modal } from '../../components/ui/Modal';
 import { FormField, Input } from '../../components/ui/Input';
-import { sampleCourses } from '../../data/sampleData';
+import { adminService } from '../../services';
 import toast from 'react-hot-toast';
 
 export default function CourseManagement() {
-  const [courses, setCourses] = useState(sampleCourses.map(c => ({ _id: c._id, name: c.name, isActive: c.isActive, branchCount: c.branches.length })));
+  const [courses, setCourses] = useState([]);
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [name, setName] = useState('');
+  const [loading, setLoading] = useState(true);
+
+  const loadCourses = async () => {
+    try {
+      const res = await adminService.getCourses();
+      if (res.data?.courses) {
+        setCourses(res.data.courses.map(c => ({
+          _id: c._id || String(c.id),
+          id: c.id,
+          name: c.name,
+          isActive: c.isActive,
+          branchCount: c.branchCount || (c.branches ? c.branches.length : 0),
+        })));
+      }
+    } catch (err) {
+      console.error('Failed to load courses:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadCourses();
+  }, []);
 
   const openAdd = () => { setEditing(null); setName(''); setModalOpen(true); };
   const openEdit = (c) => { setEditing(c); setName(c.name); setModalOpen(true); };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!name.trim()) { toast.error('Course name is required.'); return; }
-    if (editing) {
-      setCourses(prev => prev.map(c => c._id === editing._id ? { ...c, name } : c));
-      toast.success('Course updated.');
-    } else {
-      setCourses(prev => [...prev, { _id: Date.now().toString(), name, isActive: true, branchCount: 0 }]);
-      toast.success('Course created.');
+    try {
+      if (editing) {
+        await adminService.updateCourse(editing.id || editing._id, { name, isActive: editing.isActive });
+        toast.success('Course updated successfully.');
+      } else {
+        await adminService.createCourse({ name, isActive: true });
+        toast.success('Course created successfully.');
+      }
+      setModalOpen(false);
+      loadCourses();
+    } catch {
+      toast.error('Failed to save course.');
     }
-    setModalOpen(false);
   };
 
-  const toggleActive = (id) => {
-    setCourses(prev => prev.map(c => c._id === id ? { ...c, isActive: !c.isActive } : c));
-    toast.success('Status updated.');
+  const toggleActive = async (row) => {
+    try {
+      await adminService.updateCourse(row.id || row._id, { name: row.name, isActive: !row.isActive });
+      toast.success('Status updated successfully.');
+      loadCourses();
+    } catch {
+      toast.error('Failed to toggle status.');
+    }
   };
 
   const columns = [
@@ -43,7 +77,7 @@ export default function CourseManagement() {
     { header: 'Actions', key: 'action', render: (r) => (
       <div className="flex gap-2">
         <Button size="sm" variant="secondary" leftIcon={<Edit2 className="w-3.5 h-3.5" />} onClick={() => openEdit(r)}>Edit</Button>
-        <Button size="sm" variant={r.isActive ? 'danger' : 'success'} onClick={() => toggleActive(r._id)}>{r.isActive ? 'Deactivate' : 'Activate'}</Button>
+        <Button size="sm" variant={r.isActive ? 'danger' : 'success'} onClick={() => toggleActive(r)}>{r.isActive ? 'Deactivate' : 'Activate'}</Button>
       </div>
     )},
   ];

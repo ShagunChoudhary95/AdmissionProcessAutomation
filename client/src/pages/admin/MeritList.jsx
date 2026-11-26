@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Download } from 'lucide-react';
 import { DashboardLayout } from '../../components/layout/DashboardLayout';
@@ -7,15 +7,45 @@ import { DataTable } from '../../components/ui/DataTable';
 import { StatusBadge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
 import { Select } from '../../components/ui/Input';
-import { sampleApplications, sampleCourses } from '../../data/sampleData';
+import { adminService } from '../../services';
 import toast from 'react-hot-toast';
 
 export default function MeritList() {
   const navigate = useNavigate();
   const [courseFilter, setCourseFilter] = useState('All');
+  const [courses, setCourses] = useState([]);
+  const [applications, setApplications] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  const ranked = sampleApplications
-    .filter((a) => a.meritScore !== null && (courseFilter === 'All' || a.course === courseFilter))
+  useEffect(() => {
+    async function loadData() {
+      try {
+        const [appRes, courseRes] = await Promise.all([
+          adminService.getApplications({ page: 1, limit: 100 }),
+          adminService.getCourses(),
+        ]);
+        if (appRes.data?.applications) {
+          setApplications(appRes.data.applications.map(a => ({
+            ...a,
+            studentName: a.studentName || a.student?.name || 'Candidate',
+            course: a.course?.name || a.courseId?.name || 'B.Tech',
+            branch: a.branch?.name || a.branchId?.name || 'CSE',
+          })));
+        }
+        if (courseRes.data?.courses) {
+          setCourses(courseRes.data.courses);
+        }
+      } catch (err) {
+        console.error('Failed to load merit list:', err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadData();
+  }, []);
+
+  const ranked = applications
+    .filter((a) => a.meritScore !== null && (courseFilter === 'All' || a.course === courseFilter || a.course?.includes(courseFilter)))
     .sort((a, b) => (b.meritScore || 0) - (a.meritScore || 0))
     .map((a, idx) => ({ ...a, computedRank: idx + 1 }));
 
@@ -48,8 +78,8 @@ export default function MeritList() {
           <div className="flex items-center gap-3">
             <Select value={courseFilter} onChange={(e) => setCourseFilter(e.target.value)} className="w-40">
               <option value="All">All Courses</option>
-              {sampleCourses.map((c) => (
-                <option key={c._id} value={c.name}>{c.name}</option>
+              {courses.map((c) => (
+                <option key={c.id || c._id} value={c.name}>{c.name}</option>
               ))}
             </Select>
             <Button variant="secondary" size="sm" leftIcon={<Download className="w-3.5 h-3.5" />} onClick={() => toast.success('Merit list exported.')}>

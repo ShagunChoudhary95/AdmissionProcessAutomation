@@ -1,11 +1,11 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Upload, FileText, Eye, RefreshCw, AlertCircle, CheckCircle, XCircle, Clock } from 'lucide-react';
 import { DashboardLayout } from '../../components/layout/DashboardLayout';
 import { Card, CardBody, CardHeader, CardTitle } from '../../components/ui/Card';
 import { DocStatusBadge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
 import { formatDateTime } from '../../utils/helpers';
-import { sampleDocuments } from '../../data/sampleData';
+import { documentService, applicationService } from '../../services';
 import toast from 'react-hot-toast';
 
 const statusIcons = {
@@ -16,33 +16,80 @@ const statusIcons = {
   Rejected: <XCircle className="w-4 h-4 text-red-500" />,
 };
 
+const defaultDocTypes = [
+  { _id: '1', documentType: 'Class 10th Marksheet', required: true, currentVersion: { verificationStatus: 'Not Uploaded' } },
+  { _id: '2', documentType: 'Class 12th Marksheet', required: true, currentVersion: { verificationStatus: 'Not Uploaded' } },
+  { _id: '3', documentType: 'Passport Size Photograph', required: true, currentVersion: { verificationStatus: 'Not Uploaded' } },
+  { _id: '4', documentType: 'Aadhaar Card / ID Proof', required: true, currentVersion: { verificationStatus: 'Not Uploaded' } },
+  { _id: '5', documentType: 'Category Certificate', required: false, currentVersion: { verificationStatus: 'Not Uploaded' } },
+];
+
 export default function DocumentUpload() {
-  const [docs, setDocs] = useState(sampleDocuments);
+  const [docs, setDocs] = useState(defaultDocTypes);
+  const [appId, setAppId] = useState(null);
   const [uploading, setUploading] = useState(null);
   const fileRefs = useRef({});
 
-  const handleUpload = async (docId, file) => {
-    if (!file) return;
-    setUploading(docId);
-    try {
-      // const formData = new FormData();
-      // formData.append('file', file);
-      // formData.append('documentType', docType);
-      // await documentService.upload(applicationId, formData);
-      await new Promise(r => setTimeout(r, 1200));
-      setDocs(prev => prev.map(d => d._id === docId ? {
-        ...d,
-        currentVersion: {
-          ...d.currentVersion,
-          filePath: file.name,
-          uploadedAt: new Date().toISOString(),
-          verificationStatus: 'Pending Verification',
-          remarks: null,
+  useEffect(() => {
+    async function loadDocs() {
+      try {
+        const appRes = await applicationService.getMy();
+        const app = appRes.data.application || (appRes.data.applications && appRes.data.applications[0]);
+        if (app?._id) {
+          setAppId(app._id);
+          const docRes = await documentService.list(app._id);
+          const serverDocs = docRes.data.documents;
+          if (serverDocs && serverDocs.length > 0) {
+            setDocs(serverDocs);
+          }
         }
-      } : d));
-      toast.success('Document uploaded successfully!');
-    } catch {
-      toast.error('Upload failed. Please try again.');
+      } catch (err) {
+        console.error('Failed to load documents:', err);
+      }
+    }
+    loadDocs();
+  }, []);
+
+  const handleUpload = async (doc, file) => {
+    if (!file) return;
+    if (!appId) {
+      toast.error('No active application found to upload documents to.');
+      return;
+    }
+    setUploading(doc._id);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('type', doc.documentType);
+
+      let res;
+      if (doc.currentVersion?.verificationStatus === 'Re-upload Required' && doc.id) {
+        res = await documentService.reupload(appId, doc._id, formData);
+      } else {
+        res = await documentService.upload(appId, formData);
+      }
+
+      const uploadedDoc = res.data.document;
+      setDocs(prev => prev.map(d => {
+        if (d.documentType === doc.documentType || d._id === doc._id) {
+          return uploadedDoc || {
+            ...d,
+            currentVersion: {
+              ...d.currentVersion,
+              filePath: file.name,
+              originalFileName: file.name,
+              uploadedAt: new Date().toISOString(),
+              verificationStatus: 'Pending Verification',
+              remarks: null,
+            }
+          };
+        }
+        return d;
+      }));
+      toast.success(`${doc.documentType} uploaded successfully!`);
+    } catch (err) {
+      const msg = err.response?.data?.message || err.response?.data?.error || 'Upload failed. Please check file format and size.';
+      toast.error(msg);
     } finally {
       setUploading(null);
     }
@@ -140,7 +187,7 @@ export default function DocumentUpload() {
                           type="file"
                           accept=".pdf,.jpg,.jpeg,.png"
                           className="hidden"
-                          onChange={(e) => handleUpload(doc._id, e.target.files?.[0])}
+                          onChange={(e) => handleUpload(doc, e.target.files?.[0])}
                         />
                         <Button
                           size="sm"

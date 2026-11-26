@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Plus, Edit2 } from 'lucide-react';
 import { DashboardLayout } from '../../components/layout/DashboardLayout';
 import { Card } from '../../components/ui/Card';
@@ -8,24 +8,18 @@ import { Badge } from '../../components/ui/Badge';
 import { Modal } from '../../components/ui/Modal';
 import { FormField, Input, Select } from '../../components/ui/Input';
 import { formatCurrency } from '../../utils/helpers';
-import { sampleCourses } from '../../data/sampleData';
+import { adminService } from '../../services';
 import toast from 'react-hot-toast';
 
-const initialBranches = sampleCourses.flatMap((c) =>
-  c.branches.map((b) => ({
-    ...b,
-    courseId: c._id,
-    courseName: c.name,
-  }))
-);
-
 export default function BranchManagement() {
-  const [branches, setBranches] = useState(initialBranches);
+  const [branches, setBranches] = useState([]);
+  const [courses, setCourses] = useState([]);
   const [courseFilter, setCourseFilter] = useState('All');
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState(null);
+  const [loading, setLoading] = useState(true);
   const [form, setForm] = useState({
-    courseId: sampleCourses[0]._id,
+    courseId: '1',
     name: '',
     minMarks: 50,
     totalSeats: 60,
@@ -37,10 +31,36 @@ export default function BranchManagement() {
     entranceExamName: '',
   });
 
+  const loadData = async () => {
+    try {
+      const [branchRes, courseRes] = await Promise.all([
+        adminService.getBranches(),
+        adminService.getCourses(),
+      ]);
+      if (branchRes.data?.branches) {
+        setBranches(branchRes.data.branches);
+      }
+      if (courseRes.data?.courses) {
+        setCourses(courseRes.data.courses);
+        if (courseRes.data.courses.length > 0) {
+          setForm(f => ({ ...f, courseId: String(courseRes.data.courses[0].id) }));
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load branches:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
   const openAdd = () => {
     setEditing(null);
     setForm({
-      courseId: sampleCourses[0]._id,
+      courseId: courses[0]?.id ? String(courses[0].id) : '1',
       name: '',
       minMarks: 50,
       totalSeats: 60,
@@ -57,66 +77,52 @@ export default function BranchManagement() {
   const openEdit = (b) => {
     setEditing(b);
     setForm({
-      courseId: b.courseId,
+      courseId: String(b.courseId || b.course?.id || '1'),
       name: b.name,
       minMarks: b.minMarks || 50,
-      totalSeats: b.totalSeats || 60,
-      tuitionFee: (b.fees?.total || 100000) - 5000,
-      registrationFee: 5000,
+      totalSeats: b.totalSeats || b.intake || 60,
+      tuitionFee: b.fees?.tuition || b.tuitionFee || 120000,
+      registrationFee: b.fees?.registration || b.registrationFee || 5000,
       qualificationRequired: b.qualificationRequired || '12th',
       requiredSubjects: b.requiredSubjects || '',
-      entranceExamRequired: b.entranceExamRequired || false,
+      entranceExamRequired: !!b.entranceExamRequired,
       entranceExamName: b.entranceExamName || '',
     });
     setModalOpen(true);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!form.name.trim()) {
       toast.error('Branch name is required.');
       return;
     }
-    const courseName = sampleCourses.find((c) => c._id === form.courseId)?.name || 'B.Tech';
-    const totalFee = Number(form.tuitionFee) + Number(form.registrationFee);
 
-    if (editing) {
-      setBranches((prev) =>
-        prev.map((b) =>
-          b._id === editing._id
-            ? {
-                ...b,
-                ...form,
-                courseName,
-                minMarks: Number(form.minMarks),
-                totalSeats: Number(form.totalSeats),
-                fees: { tuition: Number(form.tuitionFee), registration: Number(form.registrationFee), total: totalFee },
-              }
-            : b
-        )
-      );
-      toast.success('Branch updated.');
-    } else {
-      setBranches((prev) => [
-        ...prev,
-        {
-          _id: `b_${Date.now()}`,
-          courseId: form.courseId,
-          courseName,
-          name: form.name,
-          minMarks: Number(form.minMarks),
-          totalSeats: Number(form.totalSeats),
-          confirmedSeats: 0,
-          fees: { tuition: Number(form.tuitionFee), registration: Number(form.registrationFee), total: totalFee },
-          qualificationRequired: form.qualificationRequired,
-          requiredSubjects: form.requiredSubjects,
-          entranceExamRequired: form.entranceExamRequired,
-          entranceExamName: form.entranceExamName,
-          isActive: true,
-        },
-      ]);
-      toast.success('Branch created.');
+    try {
+      const payload = {
+        courseId: form.courseId,
+        name: form.name,
+        totalSeats: Number(form.totalSeats),
+        tuitionFee: Number(form.tuitionFee),
+        registrationFee: Number(form.registrationFee),
+        minMarks: Number(form.minMarks),
+        qualificationRequired: form.qualificationRequired,
+        requiredSubjects: form.requiredSubjects,
+        entranceExamRequired: form.entranceExamRequired,
+        entranceExamName: form.entranceExamName,
+      };
+
+      if (editing) {
+        await adminService.updateBranch(editing.id || editing._id, payload);
+        toast.success('Branch updated successfully.');
+      } else {
+        await adminService.createBranch(payload);
+        toast.success('Branch created successfully.');
+      }
+      setModalOpen(false);
+      loadData();
+    } catch {
+      toast.error('Failed to save branch.');
     }
-    setModalOpen(false);
   };
 
   const toggleActive = (id) => {
@@ -160,8 +166,8 @@ export default function BranchManagement() {
           <div className="flex items-center gap-3">
             <Select value={courseFilter} onChange={(e) => setCourseFilter(e.target.value)} className="w-36">
               <option value="All">All Courses</option>
-              {sampleCourses.map((c) => (
-                <option key={c._id} value={c.name}>{c.name}</option>
+              {courses.map((c) => (
+                <option key={c.id || c._id} value={c.name}>{c.name}</option>
               ))}
             </Select>
             <Button leftIcon={<Plus className="w-4 h-4" />} onClick={openAdd}>Add Branch</Button>
@@ -178,8 +184,8 @@ export default function BranchManagement() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <FormField label="Course" required>
               <Select value={form.courseId} onChange={(e) => setForm({ ...form, courseId: e.target.value })}>
-                {sampleCourses.map((c) => (
-                  <option key={c._id} value={c._id}>{c.name}</option>
+                {courses.map((c) => (
+                  <option key={c.id || c._id} value={c.id || c._id}>{c.name}</option>
                 ))}
               </Select>
             </FormField>

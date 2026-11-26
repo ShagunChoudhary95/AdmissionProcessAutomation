@@ -1,27 +1,68 @@
+import { useState, useEffect } from 'react';
 import { DashboardLayout } from '../../components/layout/DashboardLayout';
 import { Card, CardBody, CardHeader, CardTitle } from '../../components/ui/Card';
 import { StatusBadge } from '../../components/ui/Badge';
 import { ProgressTracker } from '../../components/ui/ProgressTracker';
 import { formatDateTime } from '../../utils/helpers';
-
-const statusHistory = [
-  { status: 'Draft', timestamp: '2026-11-19T08:00:00Z', actor: 'You', note: 'Application created' },
-  { status: 'Submitted', timestamp: '2026-11-20T10:30:00Z', actor: 'You', note: 'Application submitted for review' },
-  { status: 'Under Admin Review', timestamp: '2026-11-20T11:00:00Z', actor: 'System', note: 'Application forwarded to admin for review' },
-  { status: 'Eligibility Approved', timestamp: '2026-11-21T09:30:00Z', actor: 'Admin', note: 'Eligibility verified. Application approved for document submission.' },
-  { status: 'Document Verification Pending', timestamp: '2026-11-21T09:31:00Z', actor: 'System', note: 'Awaiting document uploads and verification' },
-];
-
-const currentStatus = 'Document Verification Pending';
+import { applicationService } from '../../services';
 
 const statusDescriptions = {
+  'DRAFT': 'Your application is currently in draft mode. Please select your course and complete submission.',
+  'SUBMITTED': 'Your application has been submitted and is currently queued for verification.',
+  'UNDER_ADMIN_REVIEW': 'Your application is currently being reviewed by the admissions team.',
+  'UNDER_VERIFICATION': 'Your uploaded documents are undergoing verification by the verification officer.',
+  'VERIFIED': 'All your documents and qualifications have been successfully verified.',
+  'OFFER_ISSUED': 'Congratulations! You have been offered admission. Please pay the admission fee within 7 days to confirm your seat.',
+  'ADMISSION_OFFERED': 'Congratulations! You have been offered admission. Please accept the offer and pay the admission fee within the specified deadline.',
+  'PAYMENT_PENDING': 'Please complete your fee payment to confirm your admission.',
+  'ADMISSION_CONFIRMED': 'Your admission is confirmed. Welcome to ABES Engineering College!',
+  'CORRECTION_REQUIRED': 'Some documents or details require correction. Please review the officer remarks and update accordingly.',
+  'REJECTED': 'Your application could not be approved at this time. Please check remarks for further details.',
+  'Draft': 'Your application is currently in draft mode. Please select your course and complete submission.',
+  'Submitted': 'Your application has been submitted and is currently queued for verification.',
+  'Under Admin Review': 'Your application is currently being reviewed by the admissions team.',
+  'Under Verification': 'Your uploaded documents are undergoing verification by the verification officer.',
   'Document Verification Pending': 'Your application has been approved for document verification. Please upload all required documents. A verification officer will review each document.',
+  'Verified': 'All your documents and qualifications have been successfully verified.',
+  'Offer Issued': 'Congratulations! You have been offered admission. Please pay the admission fee within 7 days to confirm your seat.',
   'Admission Offered': 'Congratulations! You have been offered admission. Please accept the offer and pay the admission fee within the specified deadline.',
   'Payment Pending': 'Please complete your fee payment to confirm your admission.',
-  'Admission Confirmed': 'Your admission is confirmed. Welcome!',
+  'Admission Confirmed': 'Your admission is confirmed. Welcome to ABES Engineering College!',
+  'Correction Required': 'Some documents or details require correction. Please review the officer remarks and update accordingly.',
+  'Rejected': 'Your application could not be approved at this time. Please check remarks for further details.',
 };
 
 export default function ApplicationStatus() {
+  const [app, setApp] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadStatus() {
+      try {
+        const myAppRes = await applicationService.getMy();
+        const liveApp = myAppRes.data.application || (myAppRes.data.applications && myAppRes.data.applications[0]);
+        const appId = liveApp?._id || liveApp?.id;
+        if (appId) {
+          const statusRes = await applicationService.getStatus(appId);
+          setApp(statusRes.data);
+        }
+      } catch (err) {
+        console.error('Failed to load status:', err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadStatus();
+  }, []);
+
+  const currentStatus = app?.status || 'Draft';
+  const historyList = (app?.statusHistory || []).map(h => ({
+    status: h.toStatus || h.status,
+    timestamp: h.timestamp,
+    actor: h.actor || (h.changedBy ? h.changedBy.name : 'System'),
+    note: h.remarks || h.note,
+  }));
+
   return (
     <DashboardLayout role="student">
       <div className="max-w-3xl space-y-5">
@@ -44,7 +85,7 @@ export default function ApplicationStatus() {
             </div>
             <div className="text-right flex-shrink-0">
               <p className="text-xs text-slate-500">Application No.</p>
-              <p className="text-sm font-bold text-slate-800 font-mono mt-0.5">ADM2026-7K9P42</p>
+              <p className="text-sm font-bold text-slate-800 font-mono mt-0.5">{app?.applicationNumber || '—'}</p>
             </div>
           </CardBody>
         </Card>
@@ -64,24 +105,28 @@ export default function ApplicationStatus() {
             <div className="relative p-5">
               <div className="absolute left-9 top-5 bottom-5 w-px bg-slate-200" />
               <div className="space-y-6">
-                {[...statusHistory].reverse().map((event, i) => (
-                  <div key={i} className="flex items-start gap-4 relative">
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 z-10 border-2 ${i === 0 ? 'bg-blue-700 border-blue-700' : 'bg-white border-slate-300'}`}>
-                      {i === 0
-                        ? <div className="w-2 h-2 bg-white rounded-full" />
-                        : <div className="w-2 h-2 bg-slate-300 rounded-full" />
-                      }
-                    </div>
-                    <div className="flex-1 min-w-0 pb-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <StatusBadge status={event.status} />
-                        <span className="text-xs text-slate-400">{formatDateTime(event.timestamp)}</span>
-                        <span className="text-xs text-slate-500">· by {event.actor}</span>
+                {historyList.length === 0 ? (
+                  <p className="text-sm text-slate-500 py-4 text-center">No activity history yet.</p>
+                ) : (
+                  [...historyList].reverse().map((event, i) => (
+                    <div key={i} className="flex items-start gap-4 relative">
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 z-10 border-2 ${i === 0 ? 'bg-blue-700 border-blue-700' : 'bg-white border-slate-300'}`}>
+                        {i === 0
+                          ? <div className="w-2 h-2 bg-white rounded-full" />
+                          : <div className="w-2 h-2 bg-slate-300 rounded-full" />
+                        }
                       </div>
-                      {event.note && <p className="text-sm text-slate-600 mt-1">{event.note}</p>}
+                      <div className="flex-1 min-w-0 pb-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <StatusBadge status={event.status} />
+                          <span className="text-xs text-slate-400">{formatDateTime(event.timestamp)}</span>
+                          <span className="text-xs text-slate-500">· by {event.actor}</span>
+                        </div>
+                        {event.note && <p className="text-sm text-slate-600 mt-1">{event.note}</p>}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  ))
+                )}
               </div>
             </div>
           </CardBody>
