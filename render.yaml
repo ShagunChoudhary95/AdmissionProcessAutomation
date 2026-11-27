@@ -11,11 +11,10 @@ services:
         value: production
       - key: SEED_ON_EMPTY
         value: "true"
+      - key: ALLOW_MEMORY_FALLBACK
+        value: "true"
       - key: JWT_SECRET
         generateValue: true
       - key: JWT_EXPIRES_IN
         value: 7d
-      - key: MONGODB_URI
-        sync: false
-      - key: CLIENT_URL
-        sync: false
+
