@@ -8,6 +8,7 @@ import { Button } from '../../components/ui/Button';
 import { FormField, Input } from '../../components/ui/Input';
 import { useAuthStore } from '../../store/authStore';
 import { authService } from '../../services';
+import { Footer } from '../../components/layout/Footer';
 import toast from 'react-hot-toast';
 
 const schema = z.object({
@@ -39,14 +40,18 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex">
+    <div className="min-h-screen bg-slate-50 flex flex-col">
+      <div className="flex-1 flex">
       {/* Left branding panel */}
       <div className="hidden lg:flex lg:flex-1 bg-blue-900 flex-col justify-between p-12">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center">
             <GraduationCap className="w-6 h-6 text-blue-800" />
           </div>
-          <span className="text-white font-bold text-lg">AdmissionPortal</span>
+          <div>
+            <span className="text-white font-bold text-lg block leading-tight">AdmissionPortal</span>
+            <span className="text-blue-200 text-xs font-medium">ABESEC Ghaziabad</span>
+          </div>
         </div>
         <div>
           <h2 className="text-3xl font-bold text-white leading-tight mb-4">
@@ -74,11 +79,14 @@ export default function Login() {
       {/* Right login form */}
       <div className="flex-1 flex items-center justify-center p-6 lg:max-w-md lg:w-full">
         <div className="w-full max-w-sm">
-          <div className="flex items-center gap-2 mb-8 lg:hidden">
+          <div className="flex items-center gap-2.5 mb-8 lg:hidden">
             <div className="w-8 h-8 bg-blue-800 rounded-lg flex items-center justify-center">
               <GraduationCap className="w-5 h-5 text-white" />
             </div>
-            <span className="font-bold text-blue-900">AdmissionPortal</span>
+            <div>
+              <span className="font-bold text-blue-900 block leading-tight">AdmissionPortal</span>
+              <span className="text-xs font-medium text-blue-700">ABESEC Ghaziabad</span>
+            </div>
           </div>
 
           <div className="mb-8">
@@ -132,6 +140,8 @@ export default function Login() {
           </div>
         </div>
       </div>
+      </div>
+      <Footer />
     </div>
   );
 }

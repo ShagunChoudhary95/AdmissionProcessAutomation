@@ -1,6 +1,7 @@
 import { useLocation } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { Navbar } from './Navbar';
+import { Footer } from './Footer';
 
 const pageTitles = {
   '/student/dashboard': 'Dashboard',
@@ -36,8 +37,9 @@ export function DashboardLayout({ role, children }) {
       <Sidebar role={role} />
       <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
         <Navbar title={title} />
-        <main className="flex-1 overflow-y-auto p-6">
-          {children}
+        <main className="flex-1 overflow-y-auto flex flex-col">
+          <div className="flex-1 p-6">{children}</div>
+          <Footer />
         </main>
       </div>
     </div>

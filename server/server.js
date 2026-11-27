@@ -8,7 +8,7 @@ import { seedData } from './seed.js';
 const PORT = process.env.PORT || 5000;
 
 connectDB().then(async ({ inMemory }) => {
-  if (inMemory) {
+  if (inMemory || process.env.SEED_ON_EMPTY === 'true') {
     await seedData();
   }
   app.listen(PORT, () => {
