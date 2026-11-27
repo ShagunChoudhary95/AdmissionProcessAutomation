@@ -6,7 +6,7 @@ export function Footer({ className = '' }) {
       <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
         <div className="space-y-0.5 sm:text-left">
           <p className="font-medium text-slate-700">
-            Developed &amp; Maintained By: Shagun, Shivam Tomara
+            Developed &amp; Maintained By: Shagun, Shivam Tomar (CSE Sec-26)
           </p>
           <p className="text-slate-500">Full Stack Development Team</p>
         </div>
@@ -17,3 +17,4 @@ export function Footer({ className = '' }) {
     </footer>
   );
 }
+

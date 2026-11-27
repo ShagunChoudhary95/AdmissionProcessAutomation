@@ -2,7 +2,7 @@
 
 A full-stack college/university **Admission Automation System** built with React + Vite, Tailwind CSS, Node.js + Express, and MongoDB + Mongoose for **ABESEC Ghaziabad**. It manages the end-to-end admission lifecycle from student registration to document verification, merit evaluation, seat reservation, fee payment, and final admission confirmation.
 
-**Developed & Maintained By:** Shagun, Shivam Tomara (Full Stack Development Team)
+**Developed & Maintained By:** Shagun, Shivam Tomar (CSE Sec-26) — Full Stack Development Team
 
 ## Live Deployment
 
