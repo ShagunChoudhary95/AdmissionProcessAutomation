@@ -2,7 +2,12 @@ import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 
-const uploadRoot = path.resolve(process.cwd(), process.env.UPLOAD_DIR || 'uploads');
+const defaultUploadDir = process.env.VERCEL ? '/tmp/uploads' : 'uploads';
+const uploadRoot = process.env.UPLOAD_DIR
+  ? path.resolve(process.cwd(), process.env.UPLOAD_DIR)
+  : process.env.VERCEL
+    ? defaultUploadDir
+    : path.resolve(process.cwd(), defaultUploadDir);
 if (!fs.existsSync(uploadRoot)) {
   fs.mkdirSync(uploadRoot, { recursive: true });
 }
@@ -35,4 +40,3 @@ export const upload = multer({
     fileSize: (Number(process.env.MAX_FILE_SIZE_MB) || 5) * 1024 * 1024,
   },
 });
-
