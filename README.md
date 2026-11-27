@@ -6,7 +6,7 @@ A full-stack college/university **Admission Automation System** built with React
 
 ## Live Deployment
 
-Live Project URL: Pending Render Deployment (will be updated upon deployment)
+Live Project URL: https://admissionprocessautomation.vercel.app/
 
 **GitHub Repository:** https://github.com/ShagunChoudhary95/AdmissionProcessAutomation
 
@@ -39,7 +39,7 @@ Live Project URL: Pending Render Deployment (will be updated upon deployment)
 
 - **Frontend:** React, Vite, Tailwind CSS, Zustand, Axios, Recharts, Lucide React, React Hook Form, Zod
 - **Backend:** Node.js, Express.js, Mongoose, JWT, bcryptjs, Multer, Nodemailer, PDFKit, Razorpay, Zod
-- **Database:** MongoDB (with automatic `mongodb-memory-server` fallback in local development if local MongoDB is not running)
+- **Database:** MongoDB Atlas (with automatic `mongodb-memory-server` fallback in local development if local MongoDB is not running)
 
 ## User Login Credentials
 
@@ -90,7 +90,7 @@ The frontend will run on `http://localhost:5173` (or build for production with `
 
 ## Environment Variables (`server/.env`)
 
-Do not commit secret values to source control. Configure these in `server/.env` locally or in Render's Environment settings:
+Do not commit secret values to source control. Configure these in `server/.env` locally or in Vercel's Environment Variables:
 
 | Variable | Description | Default |
 |---|---|---|
@@ -104,13 +104,13 @@ Do not commit secret values to source control. Configure these in `server/.env` 
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` | Nodemailer SMTP settings | `smtp.ethereal.email` |
 | `EMAIL_FROM` | Sender address for emails | — |
 | `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET` | Razorpay test mode credentials | — |
-| `UPLOAD_DIR` | Local upload directory | `uploads` |
+| `UPLOAD_DIR` | Upload directory | `uploads` (`/tmp/uploads` on Vercel) |
 | `MAX_FILE_SIZE_MB` | Max document upload size | `5` |
 
-## Render Deployment
+## Vercel Deployment
 
-This repository includes a `render.yaml` Blueprint for deploying as a Node.js Web Service on Render:
+This repository includes `vercel.json` and `api/index.js` for deploying both the React frontend and Express API on Vercel:
 - **Build Command:** `npm --prefix client install && npm --prefix client run build && npm --prefix server install`
-- **Start Command:** `npm --prefix server start`
-- **Health Check:** `/api/health`
-- Configure `MONGODB_URI`, `JWT_SECRET`, and `CLIENT_URL` in Render's Environment Variables.
+- **Output Directory:** `client/dist`
+- **API Serverless Entrypoint:** `api/index.js` (rewrites `/api/(.*)` to `/api/index.js`)
+- Configure `MONGODB_URI`, `JWT_SECRET`, `JWT_EXPIRES_IN`, `SEED_ON_EMPTY`, and `UPLOAD_DIR` in Vercel's Environment Variables.
