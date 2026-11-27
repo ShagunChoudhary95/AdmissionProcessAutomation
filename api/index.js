@@ -1,7 +1,3 @@
-import app from '../server/app.js';
-import { connectDB } from '../server/config/db.js';
-import { seedData } from '../server/seed.js';
-
 let initPromise = null;
 
 async function ensureReady() {
@@ -10,10 +6,16 @@ async function ensureReady() {
       if (!process.env.ALLOW_MEMORY_FALLBACK) {
         process.env.ALLOW_MEMORY_FALLBACK = 'true';
       }
+      const [{ default: app }, { connectDB }, { seedData }] = await Promise.all([
+        import('../server/app.js'),
+        import('../server/config/db.js'),
+        import('../server/seed.js'),
+      ]);
       const { inMemory } = await connectDB();
       if (inMemory || process.env.SEED_ON_EMPTY === 'true') {
         await seedData();
       }
+      return app;
     })().catch((err) => {
       initPromise = null;
       throw err;
@@ -22,7 +24,7 @@ async function ensureReady() {
   return initPromise;
 }
 
-export default async function handler(req, res) {
-  await ensureReady();
+module.exports = async function handler(req, res) {
+  const app = await ensureReady();
   return app(req, res);
-}
+};
